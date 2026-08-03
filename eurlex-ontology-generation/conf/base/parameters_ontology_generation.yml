@@ -1,0 +1,105 @@
+# This is a boilerplate parameters config generated for pipeline 'ontology_generation'
+# using Kedro 1.4.0.
+#
+# Documentation for this file format can be found in "Parameters"
+# Link: https://docs.kedro.org/en/1.4.0/configuration/parameters.html
+
+ontology_generation:
+
+  model: qwen2.5:3b     # Name of the LLM model
+  max_chunks: 5         # Number of chunks to process
+  temperature: 0.1      # Controls randomness: lower values (close to 0) make output deterministic
+  ontology_domain: ODRL # Domain of the ontology
+  json_mode: true
+
+
+  # Prompt instructions that define the LLM's role, task, and output constraints (remains the same for all chunks)
+  # The '|' preserves multiline formatting
+  system_prompt: |
+    You are an expert ontology engineer specialized in legal knowledge representation and the W3C Open Digital Rights Language (ODRL) 2.2 Ontology.
+
+    Your task is to analyze legal text fragments from EUR-Lex and extract a machine-readable ontology strictly aligned with ODRL principles.
+
+    CORE ODRL ENTITIES:
+    - Asset: The subject, document, product, or legal resource.
+    - Party: An individual, organization, or authority involved (RightsHolder or Assignee).
+    - Permission: An allowed legal action (e.g., odrl:use, apply_levy, import, export).
+    - Prohibition: A explicitly forbidden action.
+    - Duty: A mandatory obligation or requirement that a Party MUST perform.
+    - Constraint: A quantitative or qualitative restriction attached to a Permission or Duty (e.g., spatial, temporal, threshold).
+
+    RULES FOR EXTRACTION:
+    1. Extract explicitly stated legal rights (Permissions), bans (Prohibitions), and mandatory duties (Duties).
+    2. Actions in permissions/duties MUST be lowercase snake_case (e.g., "calculate_import_duty", not "Calculate the import duty for cereal").
+    3. If a legal rule has a condition/limit (e.g., "effective until 1985", "valid for cereal products"), represent it strictly as a Constraint.
+    4. Do not invent facts not present in the provided text fragment.
+    5. Rely strictly on context provided in the input text for any example instances.
+
+  # Contains the text of the document, each chunk will produce a different prompt
+  user_prompt_template: |
+    Analyze the following EUR-Lex legal text fragment and extract an ODRL-aligned ontology.
+
+    Return ONLY a single valid JSON object following EXPLICITLY this structure:
+
+    {{
+      "ontology_name": "Unique Short Name",
+      "description": "Short explanation of this ontology coverage",
+      "odrl_alignment": {{
+        "core_entities": ["Asset", "Party", "Permission", "Duty", "Constraint"],
+        "extensions": ["LegalInstrument", "Regulation"]
+      }},
+      "classes": [
+        {{
+          "name": "ClassName",
+          "type": "ODRL_core",
+          "description": "Definition of class"
+        }}
+      ],
+      "relationships": [
+        {{
+          "source": "ClassNameA",
+          "relation": "appliesTo",
+          "target": "ClassNameB",
+          "description": "Relationship description"
+        }}
+      ],
+      "rights_model": {{
+        "permissions": [
+          {{
+            "action": "action_name_in_snake_case",
+            "asset": "TargetAsset",
+            "party": "TargetParty",
+            "constraints": [
+              {{
+                "name": "ConstraintType",
+                "value": "ConstraintValue"
+              }}
+            ]
+          }}
+        ],
+        "duties": [
+          {{
+            "action": "mandatory_action_in_snake_case",
+            "party": "ResponsibleParty",
+            "constraints": []
+          }}
+        ]
+      }},
+      "legal_patterns": [
+        {{
+          "pattern_name": "PatternName",
+          "description": "Description of the legal interaction",
+          "entities_involved": ["Entity1", "Entity2"]
+        }}
+      ],
+      "example_instances": [
+        {{
+          "entity": "EntityName",
+          "example_value": "Exact textual reference from document",
+          "source_context": "Exact snippet from provided text"
+        }}
+      ]
+    }}
+
+    EUR-Lex text:
+    {text}

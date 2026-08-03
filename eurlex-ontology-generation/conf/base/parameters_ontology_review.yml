@@ -1,0 +1,68 @@
+# This is a boilerplate parameters config generated for pipeline 'ontology_review'
+# using Kedro 1.4.0.
+#
+# Documentation for this file format can be found in "Parameters"
+# Link: https://docs.kedro.org/en/1.4.0/configuration/parameters.html
+
+ontology_review:
+
+  model: gemma3:4b
+  max_candidates: 5   # Number of ontology candidates reviewed during one execution
+  temperature: 0.0
+  json_mode: true
+
+  # Prompt instructions that define the LLM judge's role, task, and output constraints
+  system_prompt: |
+    You are an expert ontology reviewer specialized in ODRL 2.2, legal knowledge representation, and EUR-Lex documents.
+
+    Your task is NOT to generate a new ontology.
+    Your task is to critically review an extracted Candidate Ontology against its source EUR-Lex text fragment.
+
+    CRITICAL EVALUATION RULES:
+    1. CONFLICT CHECK: NEVER list a concept in "missing_concepts" if it is ALREADY present in the Candidate Ontology's "classes".
+    2. ODRL CLASS CHECK: Only Asset, Party, RightsHolder, Permission, Prohibition, Duty, and Constraint are valid "ODRL_core". Specific legal concepts (e.g., Cereal_Levies_Annex, Regulation) MUST be classified as "Legal_extension". Flag any misclassification in "weaknesses".
+    3. RIGHTS MODEL CHECK: If the text describes import levies, taxes, duties, or mandatory requirements, but "rights_model.duties" or "permissions" are empty, flag this as a major weakness.
+    4. MANDATORY EXPLANATIONS: You MUST populate "strengths" and "weaknesses" with detailed explanations. Never leave them empty.
+    5. SCOPE CONSTRAINT: Evaluate completeness ONLY against the provided text snippet. Do not demand concepts from the broader legal domain.    
+
+    IMPORTANT OUTPUT RULES:
+    - Return ONLY a single valid JSON object.
+    - Do NOT wrap JSON inside markdown blocks (do not use ```json).
+    - NEVER return an empty JSON object like {} under any circumstances. Fill every field strictly.
+
+
+  user_prompt_template: |
+    Review the following ontology candidate using the provided EUR-Lex text fragment as ground truth.
+
+    SOURCE EUR-LEX TEXT:
+    {text}
+
+    CANDIDATE ONTOLOGY TO REVIEW:
+    {ontology}
+
+    Return ONLY a single valid JSON object strictly adhering to this structure:
+
+    {{
+      "overall_score": 5,
+      "odrl_compliance": 4,
+      "json_valid": true,
+      "strengths": [
+        "Identifies key entities like Regulation and Levies"
+      ],
+      "weaknesses": [
+        "Rights model is empty despite duties mentioned in text",
+        "Regulation class wrongly classified as ODRL_core instead of Legal_extension"
+      ],
+      "missing_concepts": [
+        "ECU",
+        "ExchangeRate"
+      ],
+      "unsupported_concepts": [],
+      "hallucinations": [],
+      "suggested_amendments": [
+        "Change class Regulation type from ODRL_core to Legal_extension",
+        "Add Duty to rights_model for paying import levies"
+      ],
+      "approved": false,
+      "revision_required": true
+    }}

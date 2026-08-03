@@ -1,0 +1,19 @@
+# This is a boilerplate parameters config generated for pipeline 'eurlex_ingestion'
+# using Kedro 1.4.0.
+#
+# Documentation for this file format can be found in "Parameters"
+# Link: https://docs.kedro.org/en/1.4.0/configuration/parameters.html
+
+eurlex_ingestion:
+
+  # List of columns to keep from the source dataset
+  selected_columns:
+    - CELEX
+    - Act_name
+    - Act_type
+    - Subject_matter
+    - Date_document
+    - act_raw_text
+  
+  drop_missing_text: true     # Flag used to filter out rows that don't have text  
+  text_column: act_raw_text   # Specifies which column contains text to analyze

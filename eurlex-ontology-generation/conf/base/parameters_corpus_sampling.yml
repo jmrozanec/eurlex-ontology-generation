@@ -1,0 +1,13 @@
+# This is a boilerplate parameters config generated for pipeline 'corpus_sampling'
+# using Kedro 1.4.0.
+#
+# Documentation for this file format can be found in "Parameters"
+# Link: https://docs.kedro.org/en/1.4.0/configuration/parameters.html
+
+corpus_sampling:
+
+  sample_size: 100          # Size of samples to process
+  random_seed: 42           # Seed for the random number generator  
+  text_column: act_raw_text # Name of the input column containing the raw text to be processed
+  chunk_size: 2000          # Maximum number of characters
+  chunk_overlap: 200        # Number of characters to overlap between consecutive chunks to maintain semantic context

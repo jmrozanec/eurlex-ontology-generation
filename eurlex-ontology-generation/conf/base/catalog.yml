@@ -1,0 +1,86 @@
+# Here you can define all your datasets by using simple YAML syntax.
+#
+# Documentation for this file format can be found in "The Data Catalog"
+# Link: https://docs.kedro.org/en/stable/catalog-data/introduction/#data-catalog
+
+# Original EurLex dataset
+eurlex_raw:
+  type: pandas.CSVDataset
+  filepath: data/01_raw/EurLex_all.csv
+  load_args:
+    encoding: utf-8
+
+# Cleaned corpus prepared from the original dataset
+eurlex_corpus:
+  type: pandas.CSVDataset
+  filepath: data/02_intermediate/eurlex_corpus.csv
+  fs_args:
+    open_args_save:
+      encoding: utf-8
+    open_args_load:
+      encoding: utf-8
+  save_args:
+    index: False
+    encoding: utf-8
+  load_args:
+    encoding: utf-8
+
+# Sample of the corpus selected for ontology extraction
+eurlex_sample:
+  type: pandas.CSVDataset
+  filepath: data/03_primary/eurlex_sample.csv
+  fs_args:
+    open_args_save:
+      encoding: utf-8
+    open_args_load:
+      encoding: utf-8
+  save_args:
+    index: False
+    encoding: utf-8
+  load_args:
+    encoding: utf-8
+
+# Corpus split into chunks ready for LLM processing
+eurlex_chunks:
+  type: pandas.CSVDataset
+  filepath: data/03_primary/eurlex_chunks.csv
+  fs_args:
+    open_args_save:
+      encoding: utf-8
+    open_args_load:
+      encoding: utf-8
+  save_args:
+    index: False
+    encoding: utf-8
+  load_args:
+    encoding: utf-8
+
+# Partial ontology extracted from each corpus chunk
+ontology_candidates:
+  type: pandas.CSVDataset
+  filepath: data/04_feature/ontology_candidates.csv
+  fs_args:
+    open_args_save:
+      encoding: utf-8
+    open_args_load:
+      encoding: utf-8
+  save_args:
+    index: False
+    encoding: utf-8
+  load_args:
+    encoding: utf-8
+
+# Reviews produced by the LLM judge for each ontology candidate
+ontology_reviews:
+  type: pandas.CSVDataset
+  filepath: data/04_feature/ontology_reviews.csv
+  fs_args:
+    open_args_save:
+      encoding: utf-8
+    open_args_load:
+      encoding: utf-8
+  save_args:
+    index: False
+    encoding: utf-8
+  load_args:
+    encoding: utf-8
