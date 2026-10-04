@@ -14,6 +14,10 @@ ontology_generation:
   ontology_domain: ODRL   # Domain of the ontology
   json_mode: true
 
+  # Execution backend and parallelism settings for LLM inference
+  llm_backend:
+    provider: ollama  # Local backend provider
+    max_workers: 5    # Number of concurrent threads for parallel execution
 
   # Prompt instructions that define the LLM's role, task, and output constraints (remains the same for all chunks)
   # The '|' preserves multiline formatting

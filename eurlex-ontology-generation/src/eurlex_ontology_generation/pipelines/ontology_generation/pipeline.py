@@ -31,6 +31,7 @@ def create_pipeline(**kwargs) -> Pipeline:
                     "params:ontology_generation.system_prompt",
                     "params:ontology_generation.user_prompt_template",
                     "params:ontology_generation.json_mode",
+                    "params:ontology_generation.llm_backend",
                 ],
                 outputs="ontology_candidates_batch",
                 name="generate_partial_ontologies_node",

@@ -1,12 +1,14 @@
 import json
 import re
 from pathlib import Path
-
 import pandas as pd
-from ollama import chat
 
 from typing import Literal
 from pydantic import BaseModel
+
+from ...utils.llm_client import llm_chat, run_parallel
+from ...utils.persist import append_dedup_csv
+
 
 # Pydantic Schemas for Revised ODRL Ontology Validation
 
@@ -142,8 +144,7 @@ def load_ontology_reviews(
     return batch_reviews.reset_index(drop=True)
 
 
-# Node 1: revise ontologies based on judge review
-# Revise ontology candidates using a local LLM (Ollama), based on prior judge reviews
+# Applies feedback-driven LLM revisions to target candidate ontologies in parallel
 def revise_ontologies(
     batch_id: int,
     batch_group_size: int,
@@ -156,6 +157,7 @@ def revise_ontologies(
     expected_ontology_keys: list,
     num_ctx: int,
     num_predict: int,
+    llm_backend: dict,
 ) -> pd.DataFrame:
 
     ontology_reviews = load_ontology_reviews(
@@ -164,52 +166,34 @@ def revise_ontologies(
         reviews_directory=reviews_directory,
     )
 
-    results = []
+    # Helper closure to process and revise a single ontology row
+    def _revise_row(row) -> dict:
+        base = {
+            "batch_id": batch_id,
+            "chunk_id": row["chunk_id"],
+            "CELEX": row["CELEX"],
+            "text": row["text"],
+        }
 
-    for _, row in ontology_reviews.iterrows():
         if not row["revision_required"]:
-            results.append(
-                {
-                    "batch_id": batch_id,
-                    "chunk_id": row["chunk_id"],
-                    "CELEX": row["CELEX"],
-                    "text": row["text"],
-                    "ontology": row["ontology"],
-                    "revised": False,
-                    "revision_status": "skipped_not_required",
-                }
-            )
-            continue
+            return {**base, "ontology": row["ontology"], "revised": False,
+                    "revision_status": "skipped_not_required"}
 
         user_prompt = user_prompt_template.format(
-            ontology=row["ontology"],
-            text=row["text"],
-            review=row["review"],
+            ontology=row["ontology"], text=row["text"], review=row["review"],
         )
 
-        response = chat(
-            model=model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            options={
-                "temperature": temperature,
-                "num_ctx": num_ctx,
-                "num_predict": num_predict,
-            },
-            # Schema al posto di "json": impone chiavi e tipi validi
-            format=OntologyRevision.model_json_schema() if json_mode else None,
+        response = llm_chat(
+            llm_backend, model, system_prompt, user_prompt, temperature,
+            schema_model=OntologyRevision if json_mode else None,
+            num_ctx=num_ctx,
+            max_tokens=num_predict,
         )
+        revision_text = response.content
+        done_reason = response.done_reason
 
-        revision_text = response["message"]["content"]
-        done_reason = response.get("done_reason", "unknown")
+        revised_ontology_json, used_fallback = extract_json(revision_text, row["ontology"])
 
-        revised_ontology_json, used_fallback = extract_json(
-            revision_text, row["ontology"]
-        )
-
-        # Un'ontologia rivista senza classi non è una revisione valida
         if not used_fallback and not revised_ontology_json.get("classes"):
             revised_ontology_json = _build_fallback_json(row["ontology"])
             used_fallback = True
@@ -217,34 +201,26 @@ def revise_ontologies(
         revised_ontology_json, had_extra_keys = _strip_unexpected_keys(
             revised_ontology_json, expected_ontology_keys
         )
-
         revised_ontology_json = _sync_extensions_with_classes(revised_ontology_json)
 
-        is_revised = not used_fallback
-
         if used_fallback:
-            status = (
-                "failed_truncated_output"
-                if done_reason == "length"
-                else "failed_fallback_original_kept"
-            )
+            status = ("failed_truncated_output" if done_reason == "length"
+                      else "failed_fallback_original_kept")
         elif had_extra_keys:
             status = "revised_with_extra_keys_stripped"
         else:
             status = "revised"
 
-        results.append(
-            {
-                "batch_id": batch_id,
-                "chunk_id": row["chunk_id"],
-                "CELEX": row["CELEX"],
-                "text": row["text"],
-                "ontology": json.dumps(revised_ontology_json, ensure_ascii=False),
-                "revised": is_revised,
-                "revision_status": status,
-            }
-        )
+        return {
+            **base,
+            "ontology": json.dumps(revised_ontology_json, ensure_ascii=False),
+            "revised": not used_fallback,
+            "revision_status": status,
+        }
 
+    rows = [row for _, row in ontology_reviews.iterrows()]
+    results = run_parallel(_revise_row, rows, llm_backend.get("max_workers", 1))
+    
     return pd.DataFrame(results)
 
 
@@ -261,44 +237,9 @@ def persist_ontology_revisions(
         batch_group_size=batch_group_size,
     )
 
-    output_path = (
-        Path(output_directory)
-        / f"part_{group_id:03d}.csv"
-    )
+    output_path = Path(output_directory) / f"part_{group_id:03d}.csv"
 
-    output_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    if output_path.exists():
-        existing = pd.read_csv(
-            output_path,
-            encoding="utf-8",
-        )
-
-        combined = pd.concat(
-            [
-                existing,
-                ontology_revised,
-            ],
-            ignore_index=True,
-        )
-
-        combined = combined.drop_duplicates(
-            subset=["chunk_id"],
-            keep="last",
-        )
-    else:
-        combined = ontology_revised.copy()
-
-    combined.to_csv(
-        output_path,
-        index=False,
-        encoding="utf-8",
-    )
-
-    return str(output_path)
+    return append_dedup_csv(output_path, ontology_revised)
 
 
 # Node 2: validate revised ontologies (schema + grounding checks)
@@ -431,44 +372,9 @@ def persist_validation_reports(
         batch_group_size=batch_group_size,
     )
 
-    output_path = (
-        Path(output_directory)
-        / f"part_{group_id:03d}.csv"
-    )
+    output_path = Path(output_directory) / f"part_{group_id:03d}.csv"
 
-    output_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    if output_path.exists():
-        existing = pd.read_csv(
-            output_path,
-            encoding="utf-8",
-        )
-
-        combined = pd.concat(
-            [
-                existing,
-                validation_reports,
-            ],
-            ignore_index=True,
-        )
-
-        combined = combined.drop_duplicates(
-            subset=["chunk_id"],
-            keep="last",
-        )
-    else:
-        combined = validation_reports.copy()
-
-    combined.to_csv(
-        output_path,
-        index=False,
-        encoding="utf-8",
-    )
-
-    return str(output_path)
+    return append_dedup_csv(output_path, validation_reports)
 
 
 # Helpers

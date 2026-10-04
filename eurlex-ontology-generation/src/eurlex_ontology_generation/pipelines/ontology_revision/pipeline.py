@@ -24,6 +24,7 @@ def create_pipeline(**kwargs) -> Pipeline:
                 "params:ontology_revision.expected_ontology_keys",
                 "params:ontology_revision.num_ctx",
                 "params:ontology_revision.num_predict",
+                "params:ontology_revision.llm_backend",
             ],
             outputs="ontology_revised",
             name="revise_ontologies_node",

@@ -2,9 +2,10 @@ import json
 from pathlib import Path
 
 import pandas as pd
-from ollama import chat
 from pydantic import BaseModel, Field, ValidationError
 
+from ...utils.llm_client import llm_chat, run_parallel
+from ...utils.persist import append_dedup_csv
 from .ontology_checks import (
     compute_scores,
     filter_missing_concepts,
@@ -165,9 +166,9 @@ def load_source_chunks(
     )
 
 
-# Call the judge with structured output, retrying on failure.
-# Returns (Review, None) on success or (None, error_reason) on failure.
+# Queries the LLM judge with structured Pydantic schema validation and retry logic
 def _call_judge(
+    backend: dict,
     model: str,
     system_prompt: str,
     user_prompt: str,
@@ -179,55 +180,39 @@ def _call_judge(
 ) -> tuple[Review | None, str | None]:
 
     last_error = "unknown error"
+    is_local = backend.get("provider", "ollama") == "ollama"
 
     for attempt in range(max_retries + 1):
         try:
-            response = chat(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                options={
-                    "temperature": temperature,
-                    # different seed per attempt, otherwise a retry at
-                    # temperature 0 would return the same failure
-                    "seed": seed + attempt,
-                    "num_ctx": num_ctx,
-                    "num_predict": num_predict,
-                },
-                format=Review.model_json_schema(),
+            response = llm_chat(
+                backend, model, system_prompt, user_prompt, temperature,
+                schema_model=Review,
+                seed=seed + attempt,
+                num_ctx=num_ctx,
+                max_tokens=num_predict,
             )
-        except Exception as exc:  # connection errors, model not found, ...
-            last_error = f"ollama call failed: {exc}"
+        except Exception as exc:
+            last_error = f"llm call failed: {exc}"
             continue
 
-        # Ollama silently truncates prompts that exceed num_ctx.
-        # Heuristic: if prompt + output fill the whole window, flag it.
-        used_tokens = (
-            (response.prompt_eval_count or 0)
-            + (response.eval_count or 0)
-        )
-        if used_tokens >= num_ctx:
-            return None, (
-                f"context window exceeded "
-                f"({used_tokens} tokens >= num_ctx={num_ctx})"
-            )
+        # Check context window overflow for local Ollama deployments
+        if is_local:
+            used_tokens = response.prompt_tokens + response.output_tokens
+            if used_tokens >= num_ctx:
+                return None, (
+                    f"context window exceeded "
+                    f"({used_tokens} tokens >= num_ctx={num_ctx})"
+                )
 
+        # Retry if response was cut off due to max output length
         if response.done_reason == "length":
             last_error = "output truncated (done_reason=length)"
             continue
 
         try:
-            return (
-                Review.model_validate_json(response.message.content),
-                None,
-            )
+            return Review.model_validate_json(response.content), None
         except ValidationError as exc:
-            last_error = (
-                f"invalid review JSON "
-                f"({exc.error_count()} validation errors)"
-            )
+            last_error = f"invalid review JSON ({exc.error_count()} validation errors)"
 
     return None, last_error
 
@@ -323,7 +308,7 @@ def _build_review(
     return review_dict, approved
 
 
-# Review all ontology candidates belonging to one batch
+# Executes deterministic checks and LLM judge reviews on candidate ontologies in parallel
 def review_ontologies(
     batch_id: int,
     batch_group_size: int,
@@ -338,6 +323,7 @@ def review_ontologies(
     system_prompt: str,
     user_prompt_template: str,
     approval_thresholds: dict,
+    llm_backend: dict,
 ) -> pd.DataFrame:
 
     ontology_candidates = load_ontology_candidates(
@@ -345,40 +331,24 @@ def review_ontologies(
         batch_group_size=batch_group_size,
         candidates_directory=candidates_directory,
     )
-
     source_chunks = load_source_chunks(
         batch_id=batch_id,
         batch_group_size=batch_group_size,
         partition_manifest=chunk_partition_manifest,
     )
 
-    results = []
-
-    for _, row in ontology_candidates.iterrows():
-
-        matching_chunks = source_chunks[
-            source_chunks["chunk_id"] == row["chunk_id"]
-        ]
-
+    # Helper closure to evaluate deterministic checks and LLM judge for a single candidate
+    def _review_row(row) -> dict:
+        matching_chunks = source_chunks[source_chunks["chunk_id"] == row["chunk_id"]]
         if matching_chunks.empty:
-            raise ValueError(
-                f"Source chunk not found for chunk_id "
-                f"{row['chunk_id']}."
-            )
+            raise ValueError(f"Source chunk not found for chunk_id {row['chunk_id']}.")
 
         chunk = matching_chunks.iloc[0]
-        chunk_text = (
-            ""
-            if pd.isna(chunk["chunk_text"])
-            else str(chunk["chunk_text"])
-        )
+        chunk_text = "" if pd.isna(chunk["chunk_text"]) else str(chunk["chunk_text"])
         ontology_json = row["ontology"]
 
-        # 1. Deterministic checks (no LLM)
-        onto, findings = run_deterministic_checks(
-            ontology_json,
-            chunk_text,
-        )
+        # Run deterministic rule checks on candidate JSON
+        onto, findings = run_deterministic_checks(ontology_json, chunk_text)
 
         status = "ok"
         error_reason = None
@@ -386,7 +356,6 @@ def review_ontologies(
         revision_required = None
 
         if onto is None:
-            # Invalid candidate: no point in asking the judge.
             status = "invalid_ontology"
             error_reason = findings[0]["message"]
             review_dict = {
@@ -396,16 +365,16 @@ def review_ontologies(
             }
             approved = False
             revision_required = True
-
         else:
-            # 2. LLM judge (structured output + retries)
+            # Format user prompt for judge
             user_prompt = user_prompt_template.format(
                 text=chunk_text,
                 ontology=ontology_json,
                 automatic_checks=format_findings(findings),
             )
-
+            # Invoke LLM judge
             review, error_reason = _call_judge(
+                backend=llm_backend,
                 model=model,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
@@ -415,10 +384,8 @@ def review_ontologies(
                 num_predict=num_predict,
                 max_retries=max_retries,
             )
-
+            # Handle judge failure or context overflow
             if review is None:
-                # Judge failed: NOT a real review. approved stays empty so
-                # downstream steps can filter on status == "ok".
                 status = "error"
                 review_dict = {
                     "status": status,
@@ -426,7 +393,7 @@ def review_ontologies(
                     "automatic_findings": findings,
                 }
             else:
-                # 3. Verify the judge's claims and decide approval in code
+                # Build consolidated review and evaluate approval
                 review_dict, approved = _build_review(
                     review=review,
                     onto=onto,
@@ -437,28 +404,23 @@ def review_ontologies(
                 )
                 revision_required = not approved
 
-        results.append(
-            {
-                "batch_id": batch_id,
-                "chunk_id": row["chunk_id"],
-                "CELEX": row["CELEX"],
-                "text": chunk_text,
-                "ontology": ontology_json,
-                "review": json.dumps(
-                    review_dict,
-                    ensure_ascii=False,
-                ),
-                "status": status,
-                "error_reason": error_reason,
-                "automatic_checks": json.dumps(
-                    findings,
-                    ensure_ascii=False,
-                ),
-                "approved": approved,
-                "revision_required": revision_required,
-            }
-        )
+        return {
+            "batch_id": batch_id,
+            "chunk_id": row["chunk_id"],
+            "CELEX": row["CELEX"],
+            "text": chunk_text,
+            "ontology": ontology_json,
+            "review": json.dumps(review_dict, ensure_ascii=False),
+            "status": status,
+            "error_reason": error_reason,
+            "automatic_checks": json.dumps(findings, ensure_ascii=False),
+            "approved": approved,
+            "revision_required": revision_required,
+        }
 
+    rows = [row for _, row in ontology_candidates.iterrows()]
+    results = run_parallel(_review_row, rows, llm_backend.get("max_workers", 1))
+    
     return pd.DataFrame(results)
 
 
@@ -475,41 +437,6 @@ def persist_ontology_reviews(
         batch_group_size=batch_group_size,
     )
 
-    output_path = (
-        Path(output_directory)
-        / f"part_{group_id:03d}.csv"
-    )
+    output_path = Path(output_directory) / f"part_{group_id:03d}.csv"
 
-    output_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    if output_path.exists():
-        existing = pd.read_csv(
-            output_path,
-            encoding="utf-8",
-        )
-
-        combined = pd.concat(
-            [
-                existing,
-                ontology_reviews,
-            ],
-            ignore_index=True,
-        )
-
-        combined = combined.drop_duplicates(
-            subset=["chunk_id"],
-            keep="last",
-        )
-    else:
-        combined = ontology_reviews.copy()
-
-    combined.to_csv(
-        output_path,
-        index=False,
-        encoding="utf-8",
-    )
-
-    return str(output_path)
+    return append_dedup_csv(output_path, ontology_reviews)

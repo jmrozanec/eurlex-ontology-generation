@@ -10,6 +10,11 @@ ontology_revision:
   temperature: 0.0
   json_mode: true
 
+  # Execution backend and parallelism settings for LLM inference
+  llm_backend:
+    provider: ollama  # Local backend provider
+    max_workers: 5    # Number of concurrent threads for parallel execution
+
   # The external batch orchestrator controls which batch is processed.
   batch_id: 0
   batch_group_size: 1000

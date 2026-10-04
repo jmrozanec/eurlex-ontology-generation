@@ -20,6 +20,7 @@ dependencies = [
     "kedro-datasets>=9.5.0",
     "ollama>=0.6.2",
     "networkx>=3.4.2",
+    "filelock>=4.0.9",
 ]
 
 [project.scripts]

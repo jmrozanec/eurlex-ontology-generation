@@ -1,7 +1,10 @@
 from pathlib import Path
 import argparse
+import os
 import subprocess
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 
@@ -9,6 +12,9 @@ import pandas as pd
 MANIFEST_PATH = Path(
     "data/03_primary/chunk_batch_manifest.csv"
 )
+
+# Protects the manifest when several batches run at the same time
+manifest_lock = threading.Lock()
 
 
 # Load the persistent batch manifest
@@ -25,32 +31,72 @@ def load_manifest() -> pd.DataFrame:
     )
 
 
-# Persist the updated batch manifest
+# Atomic write, so the file is never left half-written. Must be called with manifest_lock held
 def save_manifest(manifest: pd.DataFrame) -> None:
 
-    manifest.to_csv(
-        MANIFEST_PATH,
-        index=False,
-        encoding="utf-8",
-    )
+    tmp_path = MANIFEST_PATH.with_suffix(".csv.tmp")
+    manifest.to_csv(tmp_path, index=False, encoding="utf-8")
+    os.replace(tmp_path, MANIFEST_PATH)
 
 
-# Update the status of a single batch
+# Takes the lock before touching the manifest
 def update_status(
     manifest: pd.DataFrame,
     batch_id: int,
     status: str,
 ) -> None:
 
-    manifest.loc[
-        manifest["batch_id"] == batch_id,
-        "status",
-    ] = status
+    with manifest_lock:
+        manifest.loc[
+            manifest["batch_id"] == batch_id,
+            "status",
+        ] = status
 
-    save_manifest(manifest)
+        save_manifest(manifest)
 
 
-# Execute one Kedro pipeline for a specific batch
+# Atomically pick the next batch and mark it as running, so two workers never take the same batch
+def claim_next_batch(
+    manifest: pd.DataFrame,
+    state: dict,
+    start_batch: int | None,
+    end_batch: int | None,
+):
+
+    with manifest_lock:
+        if state["left"] <= 0:
+            return None
+
+        mask = (
+            manifest["status"].isin(["pending", "failed"])
+            & ~manifest["batch_id"].isin(state["attempted"])
+        )
+        if start_batch is not None:
+            mask &= manifest["batch_id"] >= start_batch
+        if end_batch is not None:
+            mask &= manifest["batch_id"] <= end_batch
+
+        candidates = manifest[mask]
+        if candidates.empty:
+            return None
+
+        row = candidates.iloc[0]
+        batch_id = int(row["batch_id"])
+
+        state["left"] -= 1
+        # a batch that failed in this run is not retried in the same run
+        state["attempted"].add(batch_id)
+
+        manifest.loc[
+            manifest["batch_id"] == batch_id,
+            "status",
+        ] = "running"
+        save_manifest(manifest)
+
+        return batch_id, int(row["chunk_count"])
+
+
+# Execute one Kedro pipeline. The output goes to a log file per batch/pipeline
 def run_pipeline(
     pipeline_name: str,
     parameter_namespace: str,
@@ -60,6 +106,7 @@ def run_pipeline(
     command = [
         "uv",
         "run",
+        "--no-sync",
         "kedro",
         "run",
         "--pipelines",
@@ -68,17 +115,29 @@ def run_pipeline(
         f"{parameter_namespace}.batch_id={batch_id}",
     ]
 
-    print()
-    print("-" * 70)
-    print(
-        f"Running pipeline '{pipeline_name}' "
-        f"for batch {batch_id}"
+    log_path = (
+        Path("logs/batches")
+        / f"batch_{batch_id:05d}_{pipeline_name}.log"
     )
-    print("-" * 70)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    result = subprocess.run(
-        command,
-        check=False,
+    print(
+        f"[batch {batch_id}] start {pipeline_name}",
+        flush=True,
+    )
+
+    with open(log_path, "w", encoding="utf-8") as log:
+        result = subprocess.run(
+            command,
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+
+    print(
+        f"[batch {batch_id}] end {pipeline_name} "
+        f"(exit {result.returncode})",
+        flush=True,
     )
 
     return result.returncode
@@ -297,7 +356,7 @@ def recover_interrupted_batches(
 
 
 # Parse command-line arguments
-def parse_arguments() -> argparse.Namespace:    
+def parse_arguments() -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(
         description=(
@@ -310,112 +369,94 @@ def parse_arguments() -> argparse.Namespace:
         "--max-batches",
         type=int,
         default=1,
-        help=(
-            "Maximum number of batches to process "
-            "in this execution."
-        ),
+        help="Maximum number of batches to process in this execution.",
+    )
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="Number of batches processed at the same time.",
+    )
+    parser.add_argument(
+        "--start-batch",
+        type=int,
+        default=None,
+        help="Only process batches with batch_id >= this value.",
+    )
+    parser.add_argument(
+        "--end-batch",
+        type=int,
+        default=None,
+        help="Only process batches with batch_id <= this value.",
     )
 
     return parser.parse_args()
 
 
 # Process pending ontology batches sequentially
-def main() -> None:   
+def main() -> None:
 
     args = parse_arguments()
 
-    if args.max_batches <= 0:
+    if args.max_batches <= 0 or args.parallel <= 0:
         raise ValueError(
-            "--max-batches must be greater than zero."
+            "--max-batches and --parallel must be greater than zero."
         )
 
     manifest = load_manifest()
+    manifest = recover_interrupted_batches(manifest)
 
-    # Recover batches left in 'running' state by an interrupted execution.
-    manifest = recover_interrupted_batches(
-        manifest
-    )
+    state = {
+        "left": args.max_batches,
+        "attempted": set(),
+        "done": [],
+        "failed": [],
+    }
 
-    processed_batches = 0
+    def worker() -> None:
+        while True:
+            claimed = claim_next_batch(
+                manifest, state, args.start_batch, args.end_batch
+            )
+            if claimed is None:
+                return
 
-    while processed_batches < args.max_batches:
+            batch_id, expected_count = claimed
 
-        processable_batches = manifest[
-            manifest["status"].isin(["pending", "failed"])
-        ]
+            try:
+                ok = run_batch(
+                    batch_id=batch_id,
+                    expected_count=expected_count,
+                )
+            except Exception as exc:
+                print(f"[batch {batch_id}] exception: {exc}", flush=True)
+                ok = False
 
-        if processable_batches.empty:
-            print()
-            print("No pending or failed batches remain.")
-            return
-
-        batch_row = processable_batches.iloc[0]
-
-        batch_id = int(
-            batch_row["batch_id"]
-        )
-
-        expected_count = int(
-            batch_row["chunk_count"]
-        )
-
-        print()
-        print("=" * 70)
-        print(
-            f"Starting complete pipeline for batch {batch_id}"
-        )
-        print(
-            f"Expected chunks: {expected_count}"
-        )
-        print("=" * 70)
-
-        update_status(
-            manifest=manifest,
-            batch_id=batch_id,
-            status="running",
-        )
-
-        success = run_batch(
-            batch_id=batch_id,
-            expected_count=expected_count,
-        )
-
-        if success:
             update_status(
                 manifest=manifest,
                 batch_id=batch_id,
-                status="completed",
+                status="completed" if ok else "failed",
             )
 
-            print()
+            with manifest_lock:
+                state["done" if ok else "failed"].append(batch_id)
+
             print(
-                f"Batch {batch_id} completed successfully."
+                f"[batch {batch_id}] "
+                f"{'completed' if ok else 'FAILED'}",
+                flush=True,
             )
 
-            processed_batches += 1
-
-        else:
-            update_status(
-                manifest=manifest,
-                batch_id=batch_id,
-                status="failed",
-            )
-
-            print()
-            print(
-                f"Batch {batch_id} failed."
-            )
-            print(
-                "Execution stopped."
-            )
-
-            sys.exit(1)
+    with ThreadPoolExecutor(max_workers=args.parallel) as executor:
+        futures = [executor.submit(worker) for _ in range(args.parallel)]
+        for future in futures:
+            future.result()
 
     print()
-    print(
-        f"Finished. Processed "
-        f"{processed_batches} batch(es)."
-    )
+    print(f"Completed: {sorted(state['done'])}")
+    print(f"Failed:    {sorted(state['failed'])}")
+
+    sys.exit(1 if state["failed"] else 0)
 
 
 if __name__ == "__main__":

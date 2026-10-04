@@ -24,6 +24,7 @@ def create_pipeline(**kwargs) -> Pipeline:
                 "params:ontology_review.system_prompt",
                 "params:ontology_review.user_prompt_template",
                 "params:ontology_review.approval_thresholds",
+                "params:ontology_review.llm_backend",
             ],
             outputs="ontology_reviews_batch",
             name="review_ontologies_node",

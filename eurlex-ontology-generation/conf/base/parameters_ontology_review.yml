@@ -9,9 +9,14 @@ ontology_review:
   model: gemma3:4b   # LLM model
   temperature: 0.0
   seed: 42
-  num_ctx: 8192      # Ollama silently truncates prompts that exceed the context window
+  num_ctx: 16384     # Ollama silently truncates prompts that exceed the context window
   num_predict: 2048  # hard cap on the review length
   max_retries: 2     # attempts after the first one (different seed each time)
+
+  # Execution backend and parallelism settings for LLM inference
+  llm_backend:
+    provider: ollama  # Local backend provider
+    max_workers: 5    # Number of concurrent threads for parallel execution
 
   # Number of batches processed by the review pipeline is controlled by the external batch orchestrator
   batch_id: 0

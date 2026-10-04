@@ -1,8 +1,11 @@
 import json
 import re
 import pandas as pd
-from ollama import chat
+
 from pathlib import Path
+
+from ...utils.llm_client import llm_chat, run_parallel
+from ...utils.persist import append_dedup_csv
 
 
 # Load only the partition containing the requested batch.
@@ -108,7 +111,7 @@ def get_batch_group_id(
     return batch_id // batch_group_size
 
 
-# Generate candidate ontologies for input text chunks using Ollama LLM
+# Generates partial ontologies for each text chunk using the local LLM in parallel
 def generate_partial_ontologies(
     chunks: pd.DataFrame,
     batch_id: int,
@@ -117,50 +120,29 @@ def generate_partial_ontologies(
     system_prompt: str,
     user_prompt_template: str,
     json_mode: bool,
+    llm_backend: dict,
 ) -> pd.DataFrame:
-    results = []
 
-    # Iterate over every chunk present in the dataset batch
-    for _, row in chunks.iterrows():
-        # Build the specific prompt by injecting current chunk text
-        user_prompt = user_prompt_template.format(
-            text=row["chunk_text"]
+    # Helper closure to process a single chunk row through the LLM pipeline
+    def _generate(row) -> dict:
+        user_prompt = user_prompt_template.format(text=row["chunk_text"])
+
+        # Query local LLM via helper utility
+        response = llm_chat(
+            llm_backend, model, system_prompt, user_prompt, temperature,
+            json_mode=json_mode,
         )
+        ontology_json = extract_json(response.content)
+        return {
+            "batch_id": batch_id,
+            "chunk_id": row["chunk_id"],
+            "CELEX": row["CELEX"],
+            "ontology": json.dumps(ontology_json, ensure_ascii=False),
+        }
 
-        # Send execution request to local Ollama service
-        response = chat(
-            model=model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt,
-                },
-                {
-                    "role": "user",
-                    "content": user_prompt,
-                },
-            ],
-            options={"temperature": temperature},
-            format="json" if json_mode else None,
-        )
-
-        # Extract LLM output content
-        ontology_text = response["message"]["content"]
-        ontology_json = extract_json(ontology_text)
-
-        # Record the generated metadata along with the batch context
-        results.append(
-            {
-                "batch_id": batch_id,
-                "chunk_id": row["chunk_id"],
-                "CELEX": row["CELEX"],
-                "ontology": json.dumps(
-                    ontology_json,
-                    ensure_ascii=False,
-                ),
-            }
-        )
-
+    rows = [row for _, row in chunks.iterrows()]
+    results = run_parallel(_generate, rows, llm_backend.get("max_workers", 1))
+    
     return pd.DataFrame(results)
 
 
@@ -178,44 +160,9 @@ def persist_ontology_candidates(
         batch_group_size=batch_group_size,
     )
 
-    # Construct partition filename formatted with 3-digit padding (e.g., part_000.csv)
-    output_path = (
-        Path(output_directory)
-        / f"part_{group_id:03d}.csv"
-    )
+    output_path = Path(output_directory) / f"part_{group_id:03d}.csv"
 
-    # Ensure parent directories exist
-    output_path.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    # Load existing file to merge results if it exists
-    if output_path.exists():
-        existing = pd.read_csv(output_path)
-
-        # Concatenate prior file content with newly generated candidates
-        combined = pd.concat(
-            [existing, ontology_candidates],
-            ignore_index=True,
-        )
-
-        # Deduplicate entries by chunk_id, preserving the latest run data
-        combined = combined.drop_duplicates(
-            subset=["chunk_id"],
-            keep="last",
-        )
-    else:
-        combined = ontology_candidates.copy()
-
-    # Save consolidated dataset to CSV
-    combined.to_csv(
-        output_path,
-        index=False,
-        encoding="utf-8",
-    )
-
-    return str(output_path)
+    return append_dedup_csv(output_path, ontology_candidates)
 
 
 # Helper to safely extract JSON from LLM output
