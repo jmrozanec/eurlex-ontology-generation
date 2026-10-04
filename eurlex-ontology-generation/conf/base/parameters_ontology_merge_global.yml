@@ -1,0 +1,18 @@
+# This is a boilerplate parameters config generated for pipeline 'ontology_merge_global'
+# using Kedro 1.4.0.
+#
+# Documentation for this file format can be found in "Parameters"
+# Link: https://docs.kedro.org/en/1.4.0/configuration/parameters.html
+
+# Merge every partition-level ontology produced so far into a single final ontology for the whole (or currently processed) dataset
+ontology_merge_global:
+  partition_merges_directory: data/05_model_input/ontology_merges_partition
+  output_path: data/06_models/eurlex_odrl_ontology_merged.json
+  provenance_path: data/06_models/eurlex_odrl_ontology_merged_provenance.json
+  cluster_report_path: data/06_models/eurlex_odrl_ontology_merged_cluster_report.csv
+  embedding_model: all-minilm
+  # Slightly higher threshold at the global level: partition-level
+  # classes are already partial merges, so mentions reaching this stage
+  # are individually "cleaner" and a stricter threshold reduces the risk
+  # of over-merging.
+  similarity_threshold: 0.88

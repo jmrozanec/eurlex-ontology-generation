@@ -27,38 +27,6 @@ eurlex_corpus:
     encoding: utf-8
 
 
-# Sample of the corpus selected for ontology extraction (OLD)
-eurlex_sample:
-  type: pandas.CSVDataset
-  filepath: data/03_primary/eurlex_sample.csv
-  fs_args:
-    open_args_save:
-      encoding: utf-8
-    open_args_load:
-      encoding: utf-8
-  save_args:
-    index: False
-    encoding: utf-8
-  load_args:
-    encoding: utf-8
-
-
-# Corpus split into chunks ready for LLM processing (OLD)
-eurlex_chunks:
-  type: pandas.CSVDataset
-  filepath: data/03_primary/eurlex_chunks.csv
-  fs_args:
-    open_args_save:
-      encoding: utf-8
-    open_args_load:
-      encoding: utf-8
-  save_args:
-    index: False
-    encoding: utf-8
-  load_args:
-    encoding: utf-8
-
-
 # Full corpus split into chunks
 eurlex_full_chunks:
   type: pandas.CSVDataset
@@ -116,11 +84,6 @@ current_chunk_batch:
   type: MemoryDataset
 
 
-# Pipeline batch_orchestration doesn't create a new file, but edit chunk_batch_manifest.csv
-updated_chunk_batch_manifest:
-  type: MemoryDataset
-
-
 # Pipeline: ontology_review
 ontology_reviews_batch:
   type: MemoryDataset
@@ -143,48 +106,37 @@ ontology_revision_reports_path:
   type: MemoryDataset
 
 
-# The 5 ontologies after intra-ontology review. Pipeline: ontology_merging (step a)
-reviewed_ontologies:
-  type: json.JSONDataset
-  filepath: data/05_model_input/reviewed_ontologies.json
-  save_args:
-    indent: 2
-  fs_args:
-    open_args_save:
-      encoding: utf-8
-
-
-# Readable log of intra-ontology merge decisions. Pipeline: ontology_merging (step a)
-intra_review_report:
-  type: json.JSONDataset
-  filepath: data/08_reporting/intra_review_report.json
-  save_args:
-    indent: 2
-  fs_args:
-    open_args_save:
-      encoding: utf-8
-
-
-# Final single ontology. Pipeline: ontology_merging (step b)
-final_merged_ontology:
-  type: json.JSONDataset
-  filepath: data/07_model_output/final_merged_ontology.json
-  save_args:
-    indent: 2
-  fs_args:
-    open_args_save:
-      encoding: utf-8
-
-
-# Step-by-step tracing of iterative merge. Pipeline: ontology_merging (step b)
-merge_trace:
-  type: json.JSONDataset
-  filepath: data/08_reporting/merge_trace.json
-  save_args:
-    indent: 2
-  fs_args:
-    open_args_save:
-      encoding: utf-8
+# Pipeline: ontology_merge_partition
+partition_revisions:
+  type: MemoryDataset
+ 
+partition_merged_ontology:
+  type: MemoryDataset
+ 
+partition_merge_provenance:
+  type: MemoryDataset
+ 
+partition_cluster_report:
+  type: MemoryDataset
+ 
+partition_merge_path:
+  type: MemoryDataset
+ 
+# Pipeline: ontology_merge_global
+partition_merges:
+  type: MemoryDataset
+ 
+global_merged_ontology:
+  type: MemoryDataset
+ 
+global_merge_provenance:
+  type: MemoryDataset
+ 
+global_cluster_report:
+  type: MemoryDataset
+ 
+global_merge_path:
+  type: MemoryDataset
 
 
 # Profile mapping each ontology class into a fixed category. Pipeline: ontology_merge_rules (Phase 1)
@@ -194,11 +146,9 @@ concept_profile:
   save_args:
     indent: 2
 
-
 # Unvalidated ruleset extracted by the LLM from concept profile categories. Pipeline: ontology_merge_rules (Phase 2)
 merge_rules_raw:
   type: MemoryDataset
-
 
 # Validated and sanitized ruleset ready for deterministic execution. Pipeline: ontology_merge_rules (Phase 3)
 merge_rules:
@@ -207,14 +157,12 @@ merge_rules:
   save_args:
     indent: 2
 
-
 # Final single ontology produced via deterministic rule application. Pipeline: ontology_merge_rules (Phase 4)
 final_merged_ontology_v2:
   type: json.JSONDataset
   filepath: data/07_model_output/final_merged_ontology_v2.json
   save_args:
     indent: 2
-
 
 # Step-by-step log of rule hits during deterministic merging. Pipeline: ontology_merge_rules (Phase 4)
 rule_application_trace:

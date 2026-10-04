@@ -1,5 +1,5 @@
 """
-This is a boilerplate test file for pipeline 'ontology_merging'
+This is a boilerplate test file for pipeline 'ontology_merge_partition'
 generated using Kedro 1.4.0.
 Please add your pipeline tests here.
 

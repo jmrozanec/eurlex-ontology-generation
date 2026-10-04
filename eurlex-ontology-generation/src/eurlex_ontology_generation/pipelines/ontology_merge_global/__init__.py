@@ -1,5 +1,5 @@
 """
-This is a boilerplate pipeline 'batch_orchestration'
+This is a boilerplate pipeline 'ontology_merge_global'
 generated using Kedro 1.4.0
 """
 

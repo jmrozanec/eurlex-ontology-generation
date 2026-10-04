@@ -1,5 +1,5 @@
 """
-This is a boilerplate test file for pipeline 'batch_orchestration'
+This is a boilerplate test file for pipeline 'ontology_merge_global'
 generated using Kedro 1.4.0.
 Please add your pipeline tests here.
 
