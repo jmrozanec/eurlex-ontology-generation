@@ -1,0 +1,10 @@
+# This is a boilerplate parameters config generated for pipeline 'eurlex_chunking'
+# using Kedro 1.4.0.
+#
+# Documentation for this file format can be found in "Parameters"
+# Link: https://docs.kedro.org/en/1.4.0/configuration/parameters.html
+
+eurlex_chunking:
+  text_column: act_raw_text
+  chunk_size: 2000
+  chunk_overlap: 200

@@ -1,0 +1,8 @@
+# This is a boilerplate parameters config generated for pipeline 'chunk_storage'
+# using Kedro 1.4.0.
+#
+# Documentation for this file format can be found in "Parameters"
+# Link: https://docs.kedro.org/en/1.4.0/configuration/parameters.html
+
+chunk_storage:
+  output_directory: data/03_primary/eurlex_chunks_parts

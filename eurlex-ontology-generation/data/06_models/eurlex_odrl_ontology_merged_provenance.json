@@ -1,0 +1,20 @@
+{
+  "source_label": "global",
+  "n_source_ontologies": 200,
+  "n_source_documents": 34,
+  "type_inferred": [],
+  "source_ids": [
+    "part_000"
+  ],
+  "source_celex": [
+    "part_000"
+  ],
+  "n_classes_before_dedup": 218,
+  "n_classes_after_dedup": 218,
+  "dropped": {
+    "relationship_generic_low_support": 20
+  },
+  "party_type_mismatch": [],
+  "n_partitions_included": 1,
+  "validation_issues": []
+}

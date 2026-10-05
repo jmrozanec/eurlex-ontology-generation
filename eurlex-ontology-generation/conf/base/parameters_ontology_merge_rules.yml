@@ -1,0 +1,122 @@
+# This is a boilerplate parameters config generated for pipeline 'ontology_merge_rules'
+# using Kedro 1.4.0.
+#
+# Documentation for this file format can be found in "Parameters"
+# Link: https://docs.kedro.org/en/1.4.0/configuration/parameters.html
+
+
+ontology_merge_rules:
+
+  model: gemma3:4b
+  temperature: 0.2
+  json_mode: true
+  name_similarity_threshold: 0.6
+
+  # PHASE 1: concept profiling
+  concept_profiling_system_prompt: |
+    You are an expert ontology engineer classifying ODRL-related classes into
+    fixed semantic categories, to support later rule-based ontology merging.
+
+    Categories:
+    - LegalInstrument: a regulation, directive, decision, or other legal act.
+    - EconomicCharge: a levy, duty, tariff, fee, or other monetary obligation.
+    - PartyRole: a role played by a person/organization (enforcer, holder, producer...).
+    - Asset: a product, good, or object that is the subject of legal provisions.
+    - Restriction: a constraint or limitation on trade/behavior.
+    - Other: use only if none of the above fit.
+
+    Classify EVERY class given. Do not skip any. Do not invent classes.
+
+  concept_profiling_user_prompt_template: |
+    Here is a worked EXAMPLE (unrelated to the real data below):
+
+    EXAMPLE - Ontology: TrafficRegulationExample
+    EXAMPLE - Classes to classify: ["Vehicle", "SpeedLimit", "Driver"]
+    EXAMPLE - Available categories: ["LegalInstrument", "EconomicCharge", "PartyRole", "Asset", "Restriction", "Other"]
+
+    EXAMPLE OUTPUT:
+    {{
+      "classifications": [
+        {{"class": "Vehicle", "category": "Asset", "reason": "A physical object subject to regulation."}},
+        {{"class": "SpeedLimit", "category": "Restriction", "reason": "A limitation imposed on behavior."}},
+        {{"class": "Driver", "category": "PartyRole", "reason": "A role played by a person."}}
+      ]
+    }}
+
+    Now classify the REAL data below.
+
+    Ontology: {ontology_name}
+    Classes to classify: {classes}
+    Available categories: {categories}
+
+    Return ONLY valid JSON:
+    {{
+      "classifications": [
+        {{"class": "ClassName", "category": "OneOfTheCategories", "reason": "short reason"}}
+      ]
+    }}
+
+  # PHASE 2: rule generation
+  rule_generation_system_prompt: |
+    You are an expert ontology engineer designing a REUSABLE, deterministic
+    ruleset for merging ODRL-aligned legal ontologies. These rules will be
+    applied by a Python engine WITHOUT any further LLM involvement, so they
+    must be general (based on categories, not specific class names) and must
+    not reference any particular ontology instance.
+
+    Categories available: LegalInstrument, EconomicCharge, PartyRole, Asset,
+    Restriction, Other.
+
+    Design three kinds of rules:
+    1. equivalence_rules: when two classes of the SAME category should be
+       considered candidates for merging (the engine will additionally check
+       name similarity - your rule only needs to state which categories are
+       eligible for merging at all).
+    2. prohibition_rules: category pairs that must NEVER be merged (e.g. a
+       legal instrument and an economic charge are never the same concept).
+    3. relationship_inference_rules: for category pairs that are prohibited
+       from merging but are commonly related, specify a relation label to
+       connect them instead (e.g. LegalInstrument "establishes" EconomicCharge).
+
+    Be conservative: only forbid a merge you are confident about, and only
+    infer a relationship when the connection is a common, generic pattern -
+    not specific to any single legal text.
+
+  rule_generation_user_prompt_template: |
+    Categories observed in the data: {categories_seen}
+    Full category taxonomy: {full_categories}
+
+    Return ONLY valid JSON with EXACTLY this structure:
+
+    {{
+      "equivalence_rules": [
+        {{
+          "rule_id": "ER-001",
+          "condition": {{"category_in": ["CategoryName"]}},
+          "action": "allow_merge",
+          "reason": "short reason"
+        }}
+      ],
+      "prohibition_rules": [
+        {{
+          "rule_id": "PR-001",
+          "condition": {{"category_pair": ["CategoryA", "CategoryB"]}},
+          "action": "forbid_merge",
+          "reason": "short reason"
+        }}
+      ],
+      "relationship_inference_rules": [
+        {{
+          "rule_id": "RR-001",
+          "condition": {{"category_pair": ["CategoryA", "CategoryB"]}},
+          "action": "infer_relationship",
+          "relation": "relationName",
+          "reason": "short reason"
+        }}
+      ]
+    }}
+
+    Produce one equivalence_rule per category in the taxonomy (so every
+    category can be merged with itself when names are similar), and at least
+    one prohibition_rule for each pair of categories that are conceptually
+    incompatible (e.g. LegalInstrument/EconomicCharge, PartyRole/Asset).

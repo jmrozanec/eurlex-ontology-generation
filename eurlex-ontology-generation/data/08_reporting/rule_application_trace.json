@@ -1,0 +1,315 @@
+[
+  {
+    "step": 1,
+    "merged_with": "CerealLevyOntology",
+    "rule_hits": [
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "ImportLevyRegulation",
+          "ImportLevy"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      {
+        "rule_type": "equivalence",
+        "pair_classes": [
+          "ImportLevyRegulation",
+          "Regulation"
+        ],
+        "category": "LegalInstrument",
+        "similarity": 0.67,
+        "same_source_document": true
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "ImportLevyRegulation",
+          "ECU"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "CCT",
+          "CerealsRiceProducts"
+        ],
+        "category_pair": [
+          "PartyRole",
+          "Asset"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "MemberState",
+          "CerealsRiceProducts"
+        ],
+        "category_pair": [
+          "PartyRole",
+          "Asset"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "CCT",
+          "Currency"
+        ],
+        "category_pair": [
+          "PartyRole",
+          "Asset"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "MemberState",
+          "Currency"
+        ],
+        "category_pair": [
+          "PartyRole",
+          "Asset"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "Regulation",
+          "ExchangeRate"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      }
+    ],
+    "resulting_class_count": 8
+  },
+  {
+    "step": 2,
+    "merged_with": "CerealTrade",
+    "rule_hits": [
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "TradeRestriction",
+          "CerealsRiceProducts"
+        ],
+        "category_pair": [
+          "Restriction",
+          "Asset"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "Specification",
+          "CerealsRiceProducts"
+        ],
+        "category_pair": [
+          "Restriction",
+          "Asset"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "TradeRestriction",
+          "Currency"
+        ],
+        "category_pair": [
+          "Restriction",
+          "Asset"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "Specification",
+          "Currency"
+        ],
+        "category_pair": [
+          "Restriction",
+          "Asset"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "CCT",
+          "Cereal"
+        ],
+        "category_pair": [
+          "PartyRole",
+          "Asset"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "MemberState",
+          "Cereal"
+        ],
+        "category_pair": [
+          "PartyRole",
+          "Asset"
+        ]
+      }
+    ],
+    "resulting_class_count": 11
+  },
+  {
+    "step": 3,
+    "merged_with": "AntiDumpingTariffRate",
+    "rule_hits": [
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "ImportLevyRegulation",
+          "AntiDumpingRate"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "ImportLevyRegulation",
+          "TariffRate"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      }
+    ],
+    "resulting_class_count": 13
+  },
+  {
+    "step": 4,
+    "merged_with": "EU_Reg_1985",
+    "rule_hits": [
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "Regulation",
+          "ExchangeRate"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "OfficialJournal",
+          "ExchangeRate"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "Regulation",
+          "ImportLevy"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "OfficialJournal",
+          "ImportLevy"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "Regulation",
+          "ECU"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "OfficialJournal",
+          "ECU"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "Regulation",
+          "AntiDumpingRate"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "OfficialJournal",
+          "AntiDumpingRate"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "Regulation",
+          "TariffRate"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      {
+        "rule_type": "relationship_inference",
+        "pair_classes": [
+          "OfficialJournal",
+          "TariffRate"
+        ],
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      }
+    ],
+    "resulting_class_count": 15
+  }
+]

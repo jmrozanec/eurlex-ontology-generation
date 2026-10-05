@@ -1,0 +1,440 @@
+{
+  "ontology_name": "CerealsRiceLevies_merged_CerealLevyOntology_merged_CerealTrade_merged_AntiDumpingTariffRate_merged_EU_Reg_1985",
+  "description": "Merged ontology combining 'CerealsRiceLevies_merged_CerealLevyOntology_merged_CerealTrade_merged_AntiDumpingTariffRate' and 'EU_Reg_1985'.",
+  "odrl_alignment": {
+    "core_entities": [
+      "Asset",
+      "Party",
+      "Permission",
+      "Duty",
+      "Constraint"
+    ],
+    "extensions": [
+      "Currency",
+      "ExchangeRate",
+      "Regulation"
+    ]
+  },
+  "classes": [
+    {
+      "name": "ImportLevyRegulation",
+      "type": "Legal_extension",
+      "description": "A regulation that sets import levies on products processed from cereals and rice."
+    },
+    {
+      "name": "CerealsRiceProducts",
+      "type": "Asset",
+      "description": "Products processed from cereals and rice subject to import levies."
+    },
+    {
+      "name": "Currency",
+      "type": "Legal_extension",
+      "description": "A currency used in the context of import levies and exchange rates."
+    },
+    {
+      "name": "ExchangeRate",
+      "type": "Legal_extension",
+      "description": "The rate at which one currency is exchanged for another."
+    },
+    {
+      "name": "ImportLevy",
+      "type": "ODRL_core",
+      "description": "A levy imposed on imported cereals and rice, as defined in Regulation (EEC) No 492/81."
+    },
+    {
+      "name": "CCT",
+      "type": "Legal_extension",
+      "description": "Common Customs Tariff, used for classifying goods and determining levy rates."
+    },
+    {
+      "name": "ECU",
+      "type": "Legal_extension",
+      "description": "European Currency Unit, the currency used for calculating import levies."
+    },
+    {
+      "name": "MemberState",
+      "type": "Legal_extension",
+      "description": "One of the European Union Member States involved in the implementation and enforcement of the regulations."
+    },
+    {
+      "name": "TradeRestriction",
+      "type": "Legal_extension",
+      "description": "A restriction on the trade of cereals based on specified starch and ash content."
+    },
+    {
+      "name": "Cereal",
+      "type": "Legal_extension",
+      "description": "Represents a specific type of cereal mentioned in the text."
+    },
+    {
+      "name": "Specification",
+      "type": "Legal_extension",
+      "description": "Defines the starch and ash content specifications for cereal trade."
+    },
+    {
+      "name": "AntiDumpingRate",
+      "type": "ODRL_core",
+      "description": "Represents the anti-dumping duty rate itself."
+    },
+    {
+      "name": "TariffRate",
+      "type": "ODRL_core",
+      "description": "Represents the definitive anti-dumping tariff rate."
+    },
+    {
+      "name": "Regulation",
+      "type": "Legal_extension",
+      "description": "A legal instrument that is binding in its entirety and directly applicable."
+    },
+    {
+      "name": "OfficialJournal",
+      "type": "Legal_extension",
+      "description": "The Official Journal of the European Communities, where the regulation is published."
+    }
+  ],
+  "relationships": [
+    {
+      "source": "ImportLevyRegulation",
+      "relation": "appliesTo",
+      "target": "CerealsRiceProducts",
+      "description": "The regulation applies to the specified products."
+    },
+    {
+      "source": "ImportLevyRegulation",
+      "relation": "uses",
+      "target": "Currency",
+      "description": "The regulation utilizes a currency for levy calculations."
+    },
+    {
+      "source": "ImportLevyRegulation",
+      "relation": "uses",
+      "target": "ExchangeRate",
+      "description": "The regulation utilizes an exchange rate for levy calculations."
+    },
+    {
+      "source": "Party",
+      "relation": "appliesTo",
+      "target": "ImportLevy"
+    },
+    {
+      "source": "Asset",
+      "relation": "isSubjectOf",
+      "target": "ImportLevy"
+    },
+    {
+      "source": "ImportLevyRegulation",
+      "relation": "governs",
+      "target": "ImportLevy"
+    },
+    {
+      "source": "ImportLevyRegulation",
+      "relation": "establishes",
+      "target": "ImportLevy",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge')."
+    },
+    {
+      "source": "ImportLevyRegulation",
+      "relation": "establishes",
+      "target": "ECU",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge')."
+    },
+    {
+      "source": "CCT",
+      "relation": "owns",
+      "target": "CerealsRiceProducts",
+      "description": "Inferred via relationship_inference_rule for ('PartyRole', 'Asset') (reversed loop order)."
+    },
+    {
+      "source": "MemberState",
+      "relation": "owns",
+      "target": "CerealsRiceProducts",
+      "description": "Inferred via relationship_inference_rule for ('PartyRole', 'Asset') (reversed loop order)."
+    },
+    {
+      "source": "CCT",
+      "relation": "owns",
+      "target": "Currency",
+      "description": "Inferred via relationship_inference_rule for ('PartyRole', 'Asset') (reversed loop order)."
+    },
+    {
+      "source": "MemberState",
+      "relation": "owns",
+      "target": "Currency",
+      "description": "Inferred via relationship_inference_rule for ('PartyRole', 'Asset') (reversed loop order)."
+    },
+    {
+      "source": "ImportLevyRegulation",
+      "relation": "establishes",
+      "target": "ExchangeRate",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge') (reversed loop order)."
+    },
+    {
+      "source": "TradeRestriction",
+      "relation": "relatesTo",
+      "target": "Specification"
+    },
+    {
+      "source": "Specification",
+      "relation": "specifies",
+      "target": "Cereal"
+    },
+    {
+      "source": "TradeRestriction",
+      "relation": "limits_use",
+      "target": "CerealsRiceProducts",
+      "description": "Inferred via relationship_inference_rule for ('Restriction', 'Asset') (reversed loop order)."
+    },
+    {
+      "source": "Specification",
+      "relation": "limits_use",
+      "target": "CerealsRiceProducts",
+      "description": "Inferred via relationship_inference_rule for ('Restriction', 'Asset') (reversed loop order)."
+    },
+    {
+      "source": "TradeRestriction",
+      "relation": "limits_use",
+      "target": "Currency",
+      "description": "Inferred via relationship_inference_rule for ('Restriction', 'Asset') (reversed loop order)."
+    },
+    {
+      "source": "Specification",
+      "relation": "limits_use",
+      "target": "Currency",
+      "description": "Inferred via relationship_inference_rule for ('Restriction', 'Asset') (reversed loop order)."
+    },
+    {
+      "source": "CCT",
+      "relation": "owns",
+      "target": "Cereal",
+      "description": "Inferred via relationship_inference_rule for ('PartyRole', 'Asset')."
+    },
+    {
+      "source": "MemberState",
+      "relation": "owns",
+      "target": "Cereal",
+      "description": "Inferred via relationship_inference_rule for ('PartyRole', 'Asset')."
+    },
+    {
+      "source": "AntiDumpingRate",
+      "relation": "appliesTo",
+      "target": "Nippon_Seiko_KK_and_Others",
+      "description": "The rate applies to the party."
+    },
+    {
+      "source": "Nippon_Seiko_KK_and_Others",
+      "relation": "subjectTo",
+      "target": "AntiDumpingRate",
+      "description": "The party is subject to the rate."
+    },
+    {
+      "source": "Nippon_Seiko_KK_and_Others",
+      "relation": "pays",
+      "target": "Duty",
+      "description": "The party pays the duty."
+    },
+    {
+      "source": "ImportLevyRegulation",
+      "relation": "establishes",
+      "target": "AntiDumpingRate",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge')."
+    },
+    {
+      "source": "ImportLevyRegulation",
+      "relation": "establishes",
+      "target": "TariffRate",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge')."
+    },
+    {
+      "source": "Regulation",
+      "relation": "establishes",
+      "target": "ExchangeRate",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge') (reversed loop order)."
+    },
+    {
+      "source": "OfficialJournal",
+      "relation": "establishes",
+      "target": "ExchangeRate",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge') (reversed loop order)."
+    },
+    {
+      "source": "Regulation",
+      "relation": "establishes",
+      "target": "ImportLevy",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge') (reversed loop order)."
+    },
+    {
+      "source": "OfficialJournal",
+      "relation": "establishes",
+      "target": "ImportLevy",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge') (reversed loop order)."
+    },
+    {
+      "source": "Regulation",
+      "relation": "establishes",
+      "target": "ECU",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge') (reversed loop order)."
+    },
+    {
+      "source": "OfficialJournal",
+      "relation": "establishes",
+      "target": "ECU",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge') (reversed loop order)."
+    },
+    {
+      "source": "Regulation",
+      "relation": "establishes",
+      "target": "AntiDumpingRate",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge') (reversed loop order)."
+    },
+    {
+      "source": "OfficialJournal",
+      "relation": "establishes",
+      "target": "AntiDumpingRate",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge') (reversed loop order)."
+    },
+    {
+      "source": "Regulation",
+      "relation": "establishes",
+      "target": "TariffRate",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge') (reversed loop order)."
+    },
+    {
+      "source": "OfficialJournal",
+      "relation": "establishes",
+      "target": "TariffRate",
+      "description": "Inferred via relationship_inference_rule for ('LegalInstrument', 'EconomicCharge') (reversed loop order)."
+    }
+  ],
+  "rights_model": {
+    "permissions": [
+      {
+        "action": "calculate_import_levy",
+        "asset": "CCT",
+        "party": "MemberState",
+        "constraints": []
+      },
+      {
+        "action": "apply_levy_to_cereal_products",
+        "asset": "ImportLevy",
+        "party": "CerealProductsProducer",
+        "constraints": []
+      },
+      {
+        "action": "apply_regulation",
+        "asset": "Regulation",
+        "party": "Council_of_the_European_Communitys_President_F.M._PANDOLFI",
+        "constraints": [
+          {
+            "name": "effective_date",
+            "value": "22 July 1984"
+          },
+          {
+            "name": "valid_for",
+            "value": "all_Member_States"
+          }
+        ]
+      }
+    ],
+    "duties": [
+      {
+        "description": "Regulations impose duties related to the alteration of import levies.",
+        "related_concept": "ImportLevyRegulation"
+      },
+      {
+        "action": "pay_import_levy",
+        "party": "CerealProductsProducer",
+        "constraints": []
+      },
+      "must meet starch content exceeding 45 % by weight, referred to dry matter",
+      "must not exceed ash content, by weight, referred to dry matter (after deduction of any added minerals)"
+    ]
+  },
+  "legal_patterns": [
+    {
+      "pattern_name": "LeviesAlteration",
+      "description": "The process of altering import levies based on the average levy and current market rates.",
+      "entities_involved": [
+        "ImportLevyRegulation",
+        "CerealsRiceProducts",
+        "Currency",
+        "ExchangeRate"
+      ]
+    },
+    {
+      "pattern_name": "LevyCalculationPattern",
+      "description": "The process of calculating import levies on cereals and rice.",
+      "entities_involved": [
+        "CCT",
+        "ECU",
+        "ImportLevy"
+      ]
+    },
+    {
+      "pattern_name": "LevyApplicationPattern",
+      "description": "Applying levies to specific products based on CCT heading No.",
+      "entities_involved": [
+        "CerealProductsProducer",
+        "ImportLevy"
+      ]
+    },
+    {
+      "pattern_name": "CerealTradeRestrictionPattern",
+      "description": "A pattern of legal restrictions on cereals based on starch and ash content.",
+      "entities_involved": [
+        "TradeRestriction",
+        "Specification",
+        "Cereal"
+      ]
+    },
+    {
+      "pattern_name": "Regulation_Application_Pattern",
+      "description": "The Regulation's application with respect to its effective date and scope.",
+      "entities_involved": [
+        "Regulation",
+        "Council_of_the_European_Communitys_President_F.M._PANDOLFI"
+      ]
+    }
+  ],
+  "example_instances": [
+    {
+      "entity": "ImportLevyRegulation",
+      "example_value": "Commission Regulation (EEC) No 653/81 of 12 March 1981 altering the import levies on products processed from cereals and rice",
+      "source_context": "EUR-Lex text provided"
+    },
+    {
+      "entity": "Currency",
+      "example_value": "ECU",
+      "source_context": "EUR-Lex text provided"
+    },
+    {
+      "entity": "ExchangeRate",
+      "example_value": "based on their effective parity, arithmetic mean of spot market rates",
+      "source_context": "EUR-Lex text provided"
+    },
+    {
+      "entity": "Regulation (EEC) No 492/81",
+      "example_value": "Monetary Committee, Whereas the import levies on products processed from cereals and rice were fixed by Regulation (EEC) No 492/81 (6), as last amended by Regulation (EEC) No 636/81 0",
+      "source_context": "Article 1: The import levies to be charged on products processed from cereals and rice covered by Regulation (EEC) No 2744/75 (9), as last amended by Regulation (EEC) No 2245/78 ( l0), as fixed in the Annex to amended Regulation (EEC) No 492/81 are hereby altered to the amounts set out in the Annex hereto."
+    },
+    {
+      "entity": "Import Levy",
+      "example_value": "The import levy for products falling within heading Nos 11.01 and 11.02 is calculated based on CCT heading No as per Regulation (EEC) No 492/81.",
+      "source_context": "Article 1: The import levies to be charged on products processed from cereals and rice covered by Regulation (EEC) No 2744/75, as last amended by Regulation (EEC) No 2245/78, as fixed in the Annex to amended Regulation (EEC) No 492/81 are hereby altered to the amounts set out in the Annex hereto."
+    },
+    {
+      "entity": "CerealProductsProducer",
+      "example_value": "The producer of cereal and rice products must pay the import levy as per Regulation (EEC) No 492/81.",
+      "source_context": "Article 1: The import levies to be charged on products processed from cereals and rice covered by Regulation (EEC) No 2744/75, as last amended by Regulation (EEC) No 2245/78, as fixed in the Annex to amended Regulation (EEC) No 492/81 are hereby altered to the amounts set out in the Annex hereto."
+    },
+    {
+      "entity": "products falling within heading Nos 11.01 and 11.02 and those falling within subheading 23.02 A, products falling within heading Nos 11.01 and 11.02 shall be those meeting the following specifications :",
+      "example_value": "products falling within heading Nos 11.01 and 11.02 and those falling within subheading 23.02 A, products falling within heading Nos 11.01 and 11.02 shall be those meeting the following specifications :",
+      "source_context": "products falling within heading Nos 11.01 and 11.02 and those falling within subheading 23.02 A, products falling within heading Nos 11.01 and 11.02 shall be those meeting the following specifications :"
+    },
+    {
+      "entity": "Regulation",
+      "example_value": "ticle 2 This Regulation shall enter into force on the day of its publication in the Official Journal of the European Communities. It shall apply with effect from 22 July 1984. This Regulation shall be binding in its entirety and directly applicable in all Member States. Done at Brussels, 13 May 1985. For the Council The President F.M. PANDOLFI (') OJ No L 201 , 30. 7. 1984, p . 1 . (2) OJ No L 193, 21 . 7. 1984, p . 1 .",
+      "source_context": "ticle 2 This Regulation shall enter into force on the day of its publication in the Official Journal of the European Communities. It shall apply with effect from 22 July 1984. This Regulation shall be binding in its entirety and directly applicable in all Member States. Done at Brussels, 13 May 1985. For the Council The President F.M. PANDOLFI (') OJ No L 201 , 30. 7. 1984, p . 1 . (2) OJ No L 193, 21 . 7. 1984, p . 1 ."
+    }
+  ]
+}

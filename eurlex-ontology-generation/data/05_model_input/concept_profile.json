@@ -1,0 +1,107 @@
+[
+  {
+    "ontology_name": "CerealsRiceLevies",
+    "classifications": [
+      {
+        "class": "ImportLevyRegulation",
+        "category": "LegalInstrument",
+        "reason": "A regulation governing levies."
+      },
+      {
+        "class": "CerealsRiceProducts",
+        "category": "Asset",
+        "reason": "Products subject to the levy."
+      },
+      {
+        "class": "Currency",
+        "category": "Asset",
+        "reason": "A monetary unit."
+      },
+      {
+        "class": "ExchangeRate",
+        "category": "EconomicCharge",
+        "reason": "Refers to a monetary value and thus an economic charge."
+      }
+    ]
+  },
+  {
+    "ontology_name": "CerealLevyOntology",
+    "classifications": [
+      {
+        "class": "ImportLevy",
+        "category": "EconomicCharge",
+        "reason": "A levy related to imports."
+      },
+      {
+        "class": "Regulation",
+        "category": "LegalInstrument",
+        "reason": "A legal act establishing the levy."
+      },
+      {
+        "class": "CCT",
+        "category": "PartyRole",
+        "reason": "Likely refers to a role within a regulatory framework."
+      },
+      {
+        "class": "ECU",
+        "category": "EconomicCharge",
+        "reason": "Likely represents an economic unit or charge."
+      },
+      {
+        "class": "MemberState",
+        "category": "PartyRole",
+        "reason": "A role representing a governmental entity."
+      }
+    ]
+  },
+  {
+    "ontology_name": "CerealTrade",
+    "classifications": [
+      {
+        "class": "TradeRestriction",
+        "category": "Restriction",
+        "reason": "A constraint on trade activity."
+      },
+      {
+        "class": "Cereal",
+        "category": "Asset",
+        "reason": "A product subject to trade regulations."
+      },
+      {
+        "class": "Specification",
+        "category": "Restriction",
+        "reason": "Defines requirements, acting as a limitation."
+      }
+    ]
+  },
+  {
+    "ontology_name": "AntiDumpingTariffRate",
+    "classifications": [
+      {
+        "class": "AntiDumpingRate",
+        "category": "EconomicCharge",
+        "reason": "A rate applied to imports."
+      },
+      {
+        "class": "TariffRate",
+        "category": "EconomicCharge",
+        "reason": "A rate applied to imports."
+      }
+    ]
+  },
+  {
+    "ontology_name": "EU_Reg_1985",
+    "classifications": [
+      {
+        "class": "Regulation",
+        "category": "LegalInstrument",
+        "reason": "A legal act."
+      },
+      {
+        "class": "OfficialJournal",
+        "category": "LegalInstrument",
+        "reason": "A publication of legal acts."
+      }
+    ]
+  }
+]

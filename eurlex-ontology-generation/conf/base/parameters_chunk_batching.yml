@@ -1,0 +1,9 @@
+# This is a boilerplate parameters config generated for pipeline 'chunk_batching'
+# using Kedro 1.4.0.
+#
+# Documentation for this file format can be found in "Parameters"
+# Link: https://docs.kedro.org/en/1.4.0/configuration/parameters.html
+
+# Configuration parameters for chunk batching operations
+chunk_batching:
+  batch_size: 5   # Number of chunks to group into a single processing batch

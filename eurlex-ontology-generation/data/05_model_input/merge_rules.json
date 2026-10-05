@@ -1,0 +1,127 @@
+{
+  "equivalence_rules": [
+    {
+      "rule_id": "ER-001",
+      "condition": {
+        "category_in": [
+          "LegalInstrument"
+        ]
+      },
+      "action": "allow_merge",
+      "reason": "LegalInstruments can be considered equivalent to themselves."
+    },
+    {
+      "rule_id": "ER-002",
+      "condition": {
+        "category_in": [
+          "EconomicCharge"
+        ]
+      },
+      "action": "allow_merge",
+      "reason": "EconomicCharges can be considered equivalent to themselves."
+    },
+    {
+      "rule_id": "ER-003",
+      "condition": {
+        "category_in": [
+          "PartyRole"
+        ]
+      },
+      "action": "allow_merge",
+      "reason": "PartyRoles can be considered equivalent to themselves."
+    },
+    {
+      "rule_id": "ER-004",
+      "condition": {
+        "category_in": [
+          "Asset"
+        ]
+      },
+      "action": "allow_merge",
+      "reason": "Assets can be considered equivalent to themselves."
+    },
+    {
+      "rule_id": "ER-005",
+      "condition": {
+        "category_in": [
+          "Restriction"
+        ]
+      },
+      "action": "allow_merge",
+      "reason": "Restrictions can be considered equivalent to themselves."
+    }
+  ],
+  "prohibition_rules": [
+    {
+      "rule_id": "PR-001",
+      "condition": {
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      "action": "forbid_merge",
+      "reason": "LegalInstruments and EconomicCharges represent distinct legal and financial concepts."
+    },
+    {
+      "rule_id": "PR-002",
+      "condition": {
+        "category_pair": [
+          "PartyRole",
+          "Asset"
+        ]
+      },
+      "action": "forbid_merge",
+      "reason": "PartyRoles and Assets represent different entities within a legal system."
+    },
+    {
+      "rule_id": "PR-003",
+      "condition": {
+        "category_pair": [
+          "Restriction",
+          "Asset"
+        ]
+      },
+      "action": "forbid_merge",
+      "reason": "Restrictions and Assets represent distinct legal and financial concepts."
+    }
+  ],
+  "relationship_inference_rules": [
+    {
+      "rule_id": "RR-001",
+      "condition": {
+        "category_pair": [
+          "LegalInstrument",
+          "EconomicCharge"
+        ]
+      },
+      "action": "infer_relationship",
+      "relation": "establishes",
+      "reason": "A LegalInstrument often establishes the terms of an EconomicCharge."
+    },
+    {
+      "rule_id": "RR-002",
+      "condition": {
+        "category_pair": [
+          "PartyRole",
+          "Asset"
+        ]
+      },
+      "action": "infer_relationship",
+      "relation": "owns",
+      "reason": "A PartyRole can own an Asset."
+    },
+    {
+      "rule_id": "RR-003",
+      "condition": {
+        "category_pair": [
+          "Restriction",
+          "Asset"
+        ]
+      },
+      "action": "infer_relationship",
+      "relation": "limits_use",
+      "reason": "A Restriction limits the use of an Asset."
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+# This is a boilerplate parameters config generated for pipeline 'ontology_merge_partition'
+# using Kedro 1.4.0.
+#
+# Documentation for this file format can be found in "Parameters"
+# Link: https://docs.kedro.org/en/1.4.0/configuration/parameters.html
+
+ontology_merge_partition:
+  part_id: 0
+  revisions_directory: data/04_feature/ontology_revisions
+  output_directory: data/05_model_input/ontology_merges_partition
+  provenance_directory: data/05_model_input/ontology_merges_partition_provenance
+  cluster_report_directory: data/05_model_input/ontology_merges_partition_cluster_reports
+ 
+  # Embedding model pulled via Ollama (e.g. `ollama pull all-minilm`).
+  # all-minilm is small/fast
+  embedding_model: all-minilm
+ 
+  # Cosine similarity threshold for merging two entity mentions into the
+  # same canonical entity. Start here and tune after inspecting a
+  # cluster_report: too low -> unrelated concepts get merged together;
+  # too high -> obvious duplicates (e.g. "Commission" vs "European
+  # Commission") stay separate.
+  similarity_threshold: 0.86

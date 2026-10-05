@@ -6,12 +6,18 @@
 
 ontology_generation:
 
-  model: qwen2.5:3b     # Name of the LLM model
-  max_chunks: 5         # Number of chunks to process
-  temperature: 0.1      # Controls randomness: lower values (close to 0) make output deterministic
-  ontology_domain: ODRL # Domain of the ontology
+  model: qwen2.5:3b       # Name of the LLM model
+  batch_id: 0             # Target batch identifier to process from the manifest
+  batch_group_size: 1000  # Number of batches that are grouped into the same persistent file
+  output_directory: data/04_feature/ontology_candidates
+  temperature: 0.1        # Controls randomness: lower values (close to 0) make output deterministic
+  ontology_domain: ODRL   # Domain of the ontology
   json_mode: true
 
+  # Execution backend and parallelism settings for LLM inference
+  llm_backend:
+    provider: ollama  # Local backend provider
+    max_workers: 5    # Number of concurrent threads for parallel execution
 
   # Prompt instructions that define the LLM's role, task, and output constraints (remains the same for all chunks)
   # The '|' preserves multiline formatting

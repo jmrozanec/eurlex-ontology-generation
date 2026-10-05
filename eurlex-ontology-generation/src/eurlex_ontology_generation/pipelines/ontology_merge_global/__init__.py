@@ -1,5 +1,5 @@
 """
-This is a boilerplate pipeline 'corpus_sampling'
+This is a boilerplate pipeline 'ontology_merge_global'
 generated using Kedro 1.4.0
 """
 

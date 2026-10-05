@@ -6,63 +6,66 @@
 
 ontology_review:
 
-  model: gemma3:4b
-  max_candidates: 5   # Number of ontology candidates reviewed during one execution
+  model: gemma3:4b   # LLM model
   temperature: 0.0
-  json_mode: true
+  seed: 42
+  num_ctx: 16384     # Ollama silently truncates prompts that exceed the context window
+  num_predict: 2048  # hard cap on the review length
+  max_retries: 2     # attempts after the first one (different seed each time)
 
-  # Prompt instructions that define the LLM judge's role, task, and output constraints
+  # Execution backend and parallelism settings for LLM inference
+  llm_backend:
+    provider: ollama  # Local backend provider
+    max_workers: 5    # Number of concurrent threads for parallel execution
+
+  # Number of batches processed by the review pipeline is controlled by the external batch orchestrator
+  batch_id: 0
+  batch_group_size: 1000
+
+  # Persistent directory containing ontology-generation results.
+  candidates_directory: data/04_feature/ontology_candidates
+
+  # Persistent directory containing ontology-review results.
+  output_directory: data/04_feature/ontology_reviews
+
+  # Approval is decided in code, not by the LLM.
+  approval_thresholds:
+    min_overall_score: 4
+    min_odrl_compliance: 4
+    max_verified_weaknesses: 1   # weaknesses that survived code verification
+    max_warnings: 2              # automatic warnings; any automatic error blocks approval
+
   system_prompt: |
-    You are an expert ontology reviewer specialized in ODRL 2.2, legal knowledge representation, and EUR-Lex documents.
+    You are an expert reviewer of ontologies extracted from EUR-Lex legal texts and aligned to ODRL 2.2.
 
     Your task is NOT to generate a new ontology.
-    Your task is to critically review an extracted Candidate Ontology against its source EUR-Lex text fragment.
+    Your task is to critically review a candidate ontology against its source text fragment and return a structured review.
 
-    CRITICAL EVALUATION RULES:
-    1. CONFLICT CHECK: NEVER list a concept in "missing_concepts" if it is ALREADY present in the Candidate Ontology's "classes".
-    2. ODRL CLASS CHECK: Only Asset, Party, RightsHolder, Permission, Prohibition, Duty, and Constraint are valid "ODRL_core". Specific legal concepts (e.g., Cereal_Levies_Annex, Regulation) MUST be classified as "Legal_extension". Flag any misclassification in "weaknesses".
-    3. RIGHTS MODEL CHECK: If the text describes import levies, taxes, duties, or mandatory requirements, but "rights_model.duties" or "permissions" are empty, flag this as a major weakness.
-    4. MANDATORY EXPLANATIONS: You MUST populate "strengths" and "weaknesses" with detailed explanations. Never leave them empty.
-    5. SCOPE CONSTRAINT: Evaluate completeness ONLY against the provided text snippet. Do not demand concepts from the broader legal domain.    
+    RULES:
+    1. The source text is the only ground truth. Judge completeness ONLY against the given fragment: never ask for concepts that are not in it, and never assume the text contains something it does not say.
+    2. Read the candidate ontology carefully before writing. Never claim that something is missing or empty unless you have checked that it really is.
+    3. AUTOMATIC CHECKS are computed by code and are reliable. Do not contradict them and do not repeat them as weaknesses: use "weaknesses" for OTHER problems you find.
+    4. Every weakness MUST have: "claim" (one sentence); "json_path" (dot path in the candidate ontology, e.g. rights_model.duties[0].action or classes[0].type; empty string only if it concerns the text alone); "quote" (an exact substring copied from the value found AT that json_path, or from the source text if json_path is empty); "suggested_fix" (one concrete change). Weaknesses whose path or quote cannot be verified are discarded together with their fix.
+    5. Class "type" convention: "ODRL_core" is ONLY for ODRL core concepts (Policy, Rule, Asset, Party, Action, Permission, Prohibition, Duty, Constraint). Domain concepts (instruments, funds, programmes, regulations, decisions, measures) must be "Legal_extension". Institutions and bodies (Commission, Council, Parliament, Union) are Parties: model them as Party subclasses, never as Legal_extension.
+    6. "missing_concepts": only concepts clearly supported by the text AND not already among the ontology's classes. Do not list words that are just part of an existing class name.
+    7. "hallucinations": classes, actions, parties or constraint values that are IN THE ONTOLOGY and have NO support in the text. "unsupported_concepts": items that are IN THE ONTOLOGY and only weakly supported. Never list here things that are absent from the ontology (those are missing concepts), nor entities that are supported by the text but merely undefined (automatic checks cover them).
+    8. Relation names, pattern names, the ontology name and descriptions are modelling vocabulary: they do not need to appear in the text, so do not report them.
+    9. If you find no real weakness, return an empty "weaknesses" list. Do not invent problems to fill the list.
 
-    IMPORTANT OUTPUT RULES:
-    - Return ONLY a single valid JSON object.
-    - Do NOT wrap JSON inside markdown blocks (do not use ```json).
-    - NEVER return an empty JSON object like {} under any circumstances. Fill every field strictly.
-
+    SCORING (integers 1-5, informational; final scores are computed by code):
+    overall_score: 5 = faithful and complete for this fragment; 4 = minor issues; 3 = several issues; 2 = major errors or omissions; 1 = unusable or mostly hallucinated.
+    odrl_compliance: 5 = classes, rights_model and constraints follow ODRL correctly; 3 = partial; 1 = ODRL structure ignored or misused.
 
   user_prompt_template: |
-    Review the following ontology candidate using the provided EUR-Lex text fragment as ground truth.
+    Review the candidate ontology below using the source text as ground truth.
 
     SOURCE EUR-LEX TEXT:
     {text}
 
-    CANDIDATE ONTOLOGY TO REVIEW:
+    CANDIDATE ONTOLOGY:
     {ontology}
 
-    Return ONLY a single valid JSON object strictly adhering to this structure:
+    AUTOMATIC CHECKS (computed by code, reliable):
+    {automatic_checks}
 
-    {{
-      "overall_score": 5,
-      "odrl_compliance": 4,
-      "json_valid": true,
-      "strengths": [
-        "Identifies key entities like Regulation and Levies"
-      ],
-      "weaknesses": [
-        "Rights model is empty despite duties mentioned in text",
-        "Regulation class wrongly classified as ODRL_core instead of Legal_extension"
-      ],
-      "missing_concepts": [
-        "ECU",
-        "ExchangeRate"
-      ],
-      "unsupported_concepts": [],
-      "hallucinations": [],
-      "suggested_amendments": [
-        "Change class Regulation type from ODRL_core to Legal_extension",
-        "Add Duty to rights_model for paying import levies"
-      ],
-      "approved": false,
-      "revision_required": true
-    }}
+    Respond in JSON following the provided schema. Copy quotes exactly from the text or the ontology.
