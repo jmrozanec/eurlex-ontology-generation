@@ -16,6 +16,9 @@ MANIFEST_PATH = Path(
 # Protects the manifest when several batches run at the same time
 manifest_lock = threading.Lock()
 
+# Makes sure only one thread at a time copies results to Drive (to run batches in different notebook in Colab)
+sync_lock = threading.Lock()
+
 
 # Load the persistent batch manifest
 def load_manifest() -> pd.DataFrame:
@@ -35,7 +38,11 @@ def load_manifest() -> pd.DataFrame:
 def save_manifest(manifest: pd.DataFrame) -> None:
 
     tmp_path = MANIFEST_PATH.with_suffix(".csv.tmp")
-    manifest.to_csv(tmp_path, index=False, encoding="utf-8")
+    manifest.to_csv(
+        tmp_path, 
+        index=False, 
+        encoding="utf-8"
+    )
     os.replace(tmp_path, MANIFEST_PATH)
 
 
@@ -77,6 +84,7 @@ def claim_next_batch(
             mask &= manifest["batch_id"] <= end_batch
 
         candidates = manifest[mask]
+
         if candidates.empty:
             return None
 
@@ -94,6 +102,33 @@ def claim_next_batch(
         save_manifest(manifest)
 
         return batch_id, int(row["chunk_count"])
+
+
+# Copy the results of this session to a Drive folder (to run batches in different notebook in Colab).
+# Called after every batch, so a Colab disconnection loses very little work.
+def sync_to_drive(sync_dir: str | None) -> None:
+    # Nothing to do if --sync-dir was not given
+    if not sync_dir:
+        return
+
+    dest = Path(sync_dir)
+    (dest / "04_feature").mkdir(parents=True, exist_ok=True)
+    (dest / "logs").mkdir(parents=True, exist_ok=True)
+
+    # Do not copy lock files and temporary files
+    excludes = ["--exclude", "*.lock", "--exclude", "*.tmp"]
+    commands = [
+        ["rsync", "-a", *excludes, "data/04_feature/", f"{dest}/04_feature/"],
+        ["rsync", "-a", "data/03_primary/chunk_batch_manifest.csv", f"{dest}/"],
+        ["rsync", "-a", "logs/", f"{dest}/logs/"],
+    ]
+
+    with sync_lock:
+        for cmd in commands:
+            try:
+                subprocess.run(cmd, check=False)
+            except Exception as exc:
+                print(f"[sync] warning: {exc}", flush=True)
 
 
 # Execute one Kedro pipeline. The output goes to a log file per batch/pipeline
@@ -389,11 +424,17 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help="Only process batches with batch_id <= this value.",
     )
+    parser.add_argument(
+        "--sync-dir", 
+        type=str, 
+        default=None,
+        help="Drive folder where results are copied after every batch.",
+    )
 
     return parser.parse_args()
 
 
-# Process pending ontology batches sequentially
+# Process pending ontology batches sequentially or in parallel
 def main() -> None:
 
     args = parse_arguments()
@@ -416,8 +457,12 @@ def main() -> None:
     def worker() -> None:
         while True:
             claimed = claim_next_batch(
-                manifest, state, args.start_batch, args.end_batch
+                manifest, 
+                state, 
+                args.start_batch, 
+                args.end_batch
             )
+
             if claimed is None:
                 return
 
@@ -429,6 +474,7 @@ def main() -> None:
                     expected_count=expected_count,
                 )
             except Exception as exc:
+                # An unexpected error in one batch must not kill the worker
                 print(f"[batch {batch_id}] exception: {exc}", flush=True)
                 ok = False
 
@@ -447,10 +493,16 @@ def main() -> None:
                 flush=True,
             )
 
+            # Copy results to Drive right after each batch
+            sync_to_drive(args.sync_dir)
+
     with ThreadPoolExecutor(max_workers=args.parallel) as executor:
         futures = [executor.submit(worker) for _ in range(args.parallel)]
         for future in futures:
             future.result()
+
+    # Final sync, in case something changed after the last batch
+    sync_to_drive(args.sync_dir)
 
     print()
     print(f"Completed: {sorted(state['done'])}")

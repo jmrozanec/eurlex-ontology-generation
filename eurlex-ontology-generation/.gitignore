@@ -27,6 +27,13 @@ data/**
 !data/07_model_output/**
 !data/08_reporting/**
 
+# files and folders, produced by runs to process batches, which are not needed in the repository
+runs/
+data_backup_*/
+logs/
+*.lock
+*.tmp
+
 # also keep all .gitkeep files
 !.gitkeep
 

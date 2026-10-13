@@ -150,8 +150,9 @@ def load_source_chunks(
 
     partition_info = partition_rows.iloc[0]
 
+    # Manifests created on Windows contain backslashes: normalize them so the path also works on Linux
     partition_path = Path(
-        partition_info["file_path"]
+        str(partition_info["file_path"]).replace("\\", "/")
     )
 
     if not partition_path.exists():
