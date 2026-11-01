@@ -10,6 +10,7 @@ import re
 from typing import Any
 
 from ...utils.entity_linking import load_gazetteer
+from ...utils.ontology_cleanup import action_ungrounded_reason, example_problem, party_far_from_action, rule_key
 from ...utils.ontology_normalize import type_entity
 from ...utils.vocabulary import OTHER_ACTION, load_vocabulary
 
@@ -381,17 +382,18 @@ def run_deterministic_checks(
                     "uncontrolled_action", INFO,
                     f"{kind}: action '{rule.get('action_label') or action}' is not in the controlled action vocabulary.",
                 ))
-        # ground the wording the generator used, not the canonical verb
+        # ground the wording the generator used, not the canonical verb: the verb and
+        # every word of the object must appear in the text (a single shared word such as
+        # "financial" is not enough)
         grounded_on = rule.get("action_label") or action
         if isinstance(grounded_on, str) and grounded_on != OTHER_ACTION:
-            stems = [t[:5] for t in grounded_on.lower().split("_") if len(t) > 4]
-            if stems and not any(stem in text_lower for stem in stems):
+            why = action_ungrounded_reason(rule, text)
+            if why:
                 findings.append(
                     _finding(
                         "ungrounded_action",
                         "error",
-                        f"{kind}: action '{grounded_on}' has no support in the text "
-                        "(none of its words appear).",
+                        f"{kind}: action '{grounded_on}' has no support in the text ({why}).",
                         f"Remove action '{action}' or replace it with an "
                         "action expressed in the text.",
                         data={"rule_kind": kind, "action": action, "party": rule.get("party")},
@@ -445,6 +447,48 @@ def run_deterministic_checks(
                     f"For entity '{instance.get('entity')}' use a short, "
                     "specific example_value and keep the surrounding passage "
                     "in source_context.",
+                )
+            )
+
+    # 7. Examples that do not quote the text (placeholder, paraphrase, value not in the text)
+    for instance in _dicts(onto.get("example_instances")):
+        problem = example_problem(instance, text)
+        if problem:
+            findings.append(
+                _finding(
+                    "example_not_in_text",
+                    "warning",
+                    f"Example for entity '{instance.get('entity')}' does not quote the text ({problem}).",
+                    f"For entity '{instance.get('entity')}' copy example_value and source_context "
+                    "verbatim from the text, or remove the example.",
+                )
+            )
+
+    # 8. Identical rules repeated
+    seen_rules: set[str] = set()
+    for kind, rule in _iter_rules(onto):
+        key = rule_key(rule)
+        if key in seen_rules:
+            findings.append(
+                _finding(
+                    "duplicate_rule",
+                    "warning",
+                    f"{kind}: rule '{rule.get('action_label') or rule.get('action')}' is repeated.",
+                    "Remove the repeated rules.",
+                )
+            )
+        seen_rules.add(key)
+
+    # 9. Party mentioned nowhere near the action in the text (heuristic, warning only)
+    for kind, rule in _iter_rules(onto):
+        if party_far_from_action(rule, text):
+            findings.append(
+                _finding(
+                    "party_far_from_action",
+                    "warning",
+                    f"{kind}: party '{rule.get('party')}' is not mentioned near "
+                    f"'{rule.get('action_label') or rule.get('action')}' in the text.",
+                    "Check who actually holds this rule in the text.",
                 )
             )
 

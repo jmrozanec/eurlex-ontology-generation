@@ -14,6 +14,11 @@ ontology_generation:
   ontology_domain: ODRL   # Domain of the ontology
   json_mode: true
 
+  # Post-processing in code (utils/ontology_cleanup.py)
+  skip_footnote_chunks: true   # chunks made only of footnotes "(7) ... (OJ L ...)" are not sent to the LLM
+  footnote_threshold: 0.6      # share of the chunk covered by footnotes above which it is skipped
+  cleanup_candidates: true     # drop duplicate/ungrounded rules, fix examples, trim descriptions
+
   # Grammar-constrained decoding: pass the full JSON schema (built from
   # src/eurlex_ontology_generation/resources/vocabulary.yml) to Ollama's `format`
   # instead of plain JSON mode. Class types, upper classes, actions, constraint
@@ -63,44 +68,48 @@ ontology_generation:
     GROUNDING.
     1. Extract only rights, prohibitions and duties explicitly stated in the fragment.
     2. Do not invent facts, parties, dates, amounts or currencies not present in the text.
-    3. Example instances must quote the text exactly.
+    3. Example instances must quote the text exactly: example_value and source_context are copied verbatim from the fragment. If you are not sure, omit the example.
+    4. action_label: every word of it (e.g. provide_financial_contribution) must be a word of the fragment or a plain inflection of one.
+
+    EMPTY RESULTS ARE VALID.
+    - Many fragments contain no rule at all (definitions, citations, footnotes, lists of references, recitals). For those return empty permissions, prohibitions and duties.
+    - List each rule ONCE. Never repeat the same rule or the same sentence.
+    - The JSON below is a TEMPLATE: the <...> placeholders show the shape only. NEVER copy names, actions, dates or amounts from it.
+
+    DESCRIPTIONS. Every description is ONE sentence of at most 200 characters, complete, grounded in the fragment.
 
   # Contains the text of the document, each chunk will produce a different prompt
   user_prompt_template: |
     Analyze the following EUR-Lex legal text fragment and extract an ODRL-aligned ontology.
 
-    Return ONLY a single valid JSON object with this structure (values are illustrative):
+    Return ONLY a single valid JSON object with this structure (a template: replace every <...>; constraints and rule lists may be empty):
 
     {{
-      "ontology_name": "ShortUniqueName",
-      "description": "Short explanation of this ontology's coverage",
+      "ontology_name": "<ShortUniqueName>",
+      "description": "<one sentence, max 200 characters>",
       "odrl_alignment": {{
         "core_entities": ["Asset", "Party", "Permission", "Prohibition", "Duty", "Constraint"],
-        "extensions": ["NameOfEachLegal_extensionClass"]
+        "extensions": ["<each Legal_extension class name>"]
       }},
       "classes": [
-        {{"name": "European_Commission", "type": "Party", "is_a": "EUInstitution", "kind": "individual", "description": "Definition grounded in the text"}},
-        {{"name": "FinancialContribution", "type": "Asset", "is_a": "FinancialInstrument", "kind": "class", "description": "Definition grounded in the text"}}
+        {{"name": "<Name_from_the_text>", "type": "<Party|Asset|Legal_extension>", "is_a": "<parent from the upper ontology>", "kind": "<individual|class>", "description": "<one sentence from the text>"}}
       ],
       "relationships": [
-        {{"source": "ClassOrIndividualA", "relation": "funds", "target": "ClassOrIndividualB", "description": "Relationship description"}}
+        {{"source": "<ClassA>", "relation": "<relation from the list>", "target": "<ClassB>", "description": "<short>"}}
       ],
       "rights_model": {{
-        "permissions": [
-          {{"action": "provide", "action_label": "provide_financial_contribution", "party": "PartyName", "assigner": "", "asset": "AssetName", "provision": "article",
-            "constraints": [{{"left_operand": "payAmount", "operator": "lteq", "right_operand": "50000000", "unit": "EUR"}}]}}
-        ],
+        "permissions": [],
         "prohibitions": [],
         "duties": [
-          {{"action": "submit", "action_label": "submit_application", "party": "PartyName", "assigner": "", "asset": "AssetName", "provision": "article",
-            "constraints": [{{"left_operand": "dateTime", "operator": "lteq", "right_operand": "2019-12-31", "unit": ""}}]}}
+          {{"action": "<canonical action>", "action_label": "<verb_object_from_the_text>", "party": "<ClassName>", "assigner": "", "asset": "<ClassName>", "provision": "<article|recital>",
+            "constraints": []}}
         ]
       }},
       "legal_patterns": [
-        {{"pattern_name": "PatternName", "description": "Description of the legal interaction", "entities_involved": ["Entity1", "Entity2"]}}
+        {{"pattern_name": "<PatternName>", "description": "<one sentence>", "entities_involved": ["<Class1>", "<Class2>"]}}
       ],
       "example_instances": [
-        {{"entity": "EntityName", "example_value": "Short value copied from the text", "source_context": "The sentence it comes from, copied from the text"}}
+        {{"entity": "<ClassName>", "example_value": "<short value copied verbatim from the text>", "source_context": "<the sentence copied verbatim from the text>"}}
       ]
     }}
 

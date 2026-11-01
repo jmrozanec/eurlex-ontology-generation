@@ -18,6 +18,8 @@ from typing import Any
 from .entity_linking import Gazetteer, detect_kind, load_gazetteer
 from .ontology_schema import EXPECTED_TOP_LEVEL_KEYS, KINDS, RULE_KINDS
 from .vocabulary import Vocabulary, load_vocabulary, split_identifier
+from .ontology_cleanup import cleanup_ontology
+from .ontology_grounding import constraint_is_ungrounded
 
 CORE_ENTITIES = ["Asset", "Constraint", "Duty", "Party", "Permission", "Prohibition"]
 PLACEHOLDER_NAMES = {"targetparty", "responsibleparty", "party", "unknownparty", "genericparty",
@@ -76,10 +78,19 @@ def type_entity(name: str, description: str, vocab: Vocabulary, gazetteer: Gazet
 
 
 def normalize_chunk_ontology(onto: dict, vocab: Vocabulary | None = None,
-                             gazetteer: Gazetteer | None = None) -> tuple[dict, list[dict]]:
+                             gazetteer: Gazetteer | None = None,
+                             source_text: str | None = None,
+                             original: dict | None = None) -> tuple[dict, list[dict]]:
     vocab = vocab or load_vocabulary()
     gazetteer = gazetteer or load_gazetteer()
     changes: list[dict] = []
+
+    # Checks against the source text (repeated rules, actions and examples that are not in the
+    # text, descriptions cut by the length cap, lost `provision`). `original` is the version
+    # before the revision: it is used to restore `provision`.
+    if source_text:
+        onto, cleanup_notes = cleanup_ontology(onto, source_text, original=original)
+        changes.extend(cleanup_notes)
 
     def note(code: str, detail: str) -> None:
         changes.append({"code": code, "detail": detail})
@@ -166,6 +177,14 @@ def normalize_chunk_ontology(onto: dict, vocab: Vocabulary | None = None,
                 if sc is None:
                     note("constraint_dropped", str(c)[:80])
                     continue
+                # drop values that have no trace in the source text (invented dates, amounts, currencies)
+                if source_text:
+                    reason = constraint_is_ungrounded(sc, source_text)
+                    if reason:
+                        note("constraint_ungrounded_dropped",
+                             f"{sc.get('left_operand')} {sc.get('operator')} "
+                             f"{sc.get('right_operand')}: {reason}")
+                        continue
                 if "name" in c and "left_operand" not in c:
                     note("constraint_structured", f"{c.get('name')} -> {sc['left_operand']} {sc['operator']}")
                 constraints.append(sc)

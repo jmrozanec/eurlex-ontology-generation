@@ -27,6 +27,9 @@ data/**
 !data/07_model_output/**
 !data/08_reporting/**
 
+# ignore report file from the coding agent
+AGENTS.md
+
 # also keep all .gitkeep files
 !.gitkeep
 
