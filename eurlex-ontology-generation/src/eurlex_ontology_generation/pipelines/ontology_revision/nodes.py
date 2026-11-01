@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from pathlib import Path
 import pandas as pd
@@ -8,6 +9,20 @@ from ...utils.ontology_normalize import normalize_chunk_ontology
 from ...utils.ontology_schema import build_ontology_model
 from ...utils.persist import append_dedup_csv
 from ...utils.vocabulary import load_vocabulary, render_prompt
+
+logger = logging.getLogger(__name__)
+
+
+# Save the raw text of a failed LLM attempt, to see where a runaway generation starts
+def _dump_failed_response(chunk_id, attempt: int, content) -> None:
+    try:
+        directory = Path("logs/batches/failed_revisions")
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / f"{chunk_id}_attempt{attempt + 1}.txt").write_text(
+            content or "", encoding="utf-8"
+        )
+    except OSError:
+        pass
 
 
 # The revision output is validated against the same vocabulary-driven schema
@@ -39,6 +54,7 @@ def load_ontology_reviews(
     batch_id: int,
     batch_group_size: int,
     reviews_directory: str,
+    review_round: int = 0,
 ) -> pd.DataFrame:    
 
     group_id = get_batch_group_id(
@@ -66,12 +82,14 @@ def load_ontology_reviews(
         reviews["batch_id"] == batch_id
     ].copy()
 
-    # The reviews file keeps every round; revise against the latest one.
+    # The reviews file keeps every round, including rows left by earlier runs of the
+    # same batch. A revision of round N must use the review of round N-1 and nothing
+    # else: taking "the latest round" silently picks up stale rows from a previous run.
     if "round" not in batch_reviews.columns:
         batch_reviews["round"] = 0
     batch_reviews["round"] = batch_reviews["round"].fillna(0).astype(int)
     batch_reviews = (
-        batch_reviews.sort_values("round")
+        batch_reviews[batch_reviews["round"] == review_round]
         .drop_duplicates(subset=["chunk_id"], keep="last")
     )
 
@@ -83,7 +101,7 @@ def load_ontology_reviews(
     if batch_reviews.empty:
         raise ValueError(
             f"No ontology reviews found for batch "
-            f"{batch_id} in {reviews_path}."
+            f"{batch_id}, review round {review_round}, in {reviews_path}."
         )
 
     return batch_reviews.reset_index(drop=True)
@@ -106,20 +124,25 @@ def revise_ontologies(
     revision_round: int = 1,
     normalize_after_revision: bool = True,
     vocabulary_path: str | None = None,
+    max_retries: int = 2,
 ) -> pd.DataFrame:
 
     rendered_system_prompt = render_prompt(system_prompt, vocabulary_path)
     schema_model = build_ontology_model(vocabulary_path) if json_mode else None
 
-    def _normalize(ontology: dict) -> tuple[dict, list]:
+    def _normalize(ontology: dict, text: str | None = None,
+                   original: dict | None = None) -> tuple[dict, list]:
         if not normalize_after_revision:
             return ontology, []
-        return normalize_chunk_ontology(ontology, load_vocabulary(vocabulary_path))
+        return normalize_chunk_ontology(
+            ontology, load_vocabulary(vocabulary_path), source_text=text, original=original
+        )
 
     ontology_reviews = load_ontology_reviews(
         batch_id=batch_id,
         batch_group_size=batch_group_size,
         reviews_directory=reviews_directory,
+        review_round=revision_round - 1,
     )
 
     # Helper closure to process and revise a single ontology row
@@ -134,7 +157,7 @@ def revise_ontologies(
 
         if not row["revision_required"]:
             try:
-                kept, changes = _normalize(json.loads(row["ontology"]))
+                kept, changes = _normalize(json.loads(row["ontology"]), row["text"])
                 ontology = json.dumps(kept, ensure_ascii=False)
             except (TypeError, json.JSONDecodeError):
                 ontology, changes = row["ontology"], []
@@ -148,20 +171,37 @@ def revise_ontologies(
             ontology=row["ontology"], text=row["text"], review=row["review"],
         )
 
-        response = llm_chat(
-            llm_backend, model, rendered_system_prompt, user_prompt, temperature,
-            schema_model=schema_model,
-            num_ctx=num_ctx,
-            max_tokens=num_predict,
-        )
-        revision_text = response.content
-        done_reason = response.done_reason
-
-        revised_ontology_json, used_fallback = extract_json(revision_text, row["ontology"])
-
-        if not used_fallback and not revised_ontology_json.get("classes"):
+        revised_ontology_json, used_fallback, response = None, True, None
+        for attempt in range(max_retries + 1):
+            # at temperature 0 a generation loop repeats itself identically:
+            # warm up a little on every retry
+            attempt_temperature = (
+                temperature if attempt == 0 else min(temperature + 0.3 * attempt, 0.9)
+            )
+            response = llm_chat(
+                llm_backend, model, rendered_system_prompt, user_prompt, attempt_temperature,
+                schema_model=schema_model,
+                num_ctx=num_ctx,
+                max_tokens=num_predict,
+            )
+            parsed, failed = extract_json(response.content, row["ontology"])
+            if not failed and parsed.get("classes"):
+                revised_ontology_json, used_fallback = parsed, False
+                break
+            logger.warning(
+                "chunk %s: revision attempt %d/%d failed (done_reason=%s, %d chars, head=%r, tail=%r)",
+                row["chunk_id"], attempt + 1, max_retries + 1, response.done_reason,
+                len(response.content or ""), (response.content or "")[:300],
+                (response.content or "")[-200:],
+            )
+            _dump_failed_response(row["chunk_id"], attempt, response.content)
+            # A runaway generation (hit num_predict) did not recover with a higher
+            # temperature (chunks 14/15 of batch 46 failed 3/3): retrying only burns minutes.
+            if response.done_reason == "length":
+                break
+        if used_fallback:
             revised_ontology_json = _build_fallback_json(row["ontology"])
-            used_fallback = True
+        done_reason = response.done_reason
 
         revised_ontology_json, had_extra_keys = _strip_unexpected_keys(
             revised_ontology_json, expected_ontology_keys
@@ -170,9 +210,12 @@ def revise_ontologies(
 
         # Deterministic fixes the LLM is unreliable at (typing, leakage,
         # vocabulary, referential closure). Recorded per chunk.
-        changes: list = []
-        if not used_fallback:
-            revised_ontology_json, changes = _normalize(revised_ontology_json)
+        # Normalise also the fallback (original) ontology: a failed LLM revision must
+        # still drop values that have no support in the source text.
+        # `original` (the ontology that was reviewed) is used to restore fields the LLM dropped, e.g. `provision`.
+        revised_ontology_json, changes = _normalize(
+            revised_ontology_json, row["text"], _safe_load(row["ontology"])
+        )
 
         if used_fallback:
             status = ("failed_truncated_output" if done_reason == "length"

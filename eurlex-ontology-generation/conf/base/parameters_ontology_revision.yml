@@ -31,7 +31,7 @@ ontology_revision:
 
   # Ollama generation options to avoid output truncation on long prompts (source text + ontology + review can be sizeable)
   num_ctx: 16384        # context window size (tokens)
-  num_predict: 3072     # max tokens the model can generate for the answer
+  num_predict: 4096     # max tokens the model can generate for the answer
 
   system_prompt: |
     You are an expert ontology engineer specialized in ODRL 2.2, legal knowledge representation, and EUR-Lex documents.
@@ -41,8 +41,8 @@ ontology_revision:
 
     CRITICAL REVISION RULES:
     1. APPLY ALL AMENDMENTS: You MUST apply every item listed in "suggested_amendments" from the review. Do not ignore any of them.
-    2. FIX WEAKNESSES: Address every issue listed in "weaknesses" (e.g. wrong type/is_a/kind, ODRL structure used as a class name, empty rights_model, missing duties/permissions/prohibitions).
-    3. ADD MISSING CONCEPTS: Every concept listed in "missing_concepts" MUST be added BOTH as a string in "odrl_alignment.extensions" AND as a full entry in "classes" with its own "name", "type", "is_a", "kind" and "description" grounded in the source text.
+    2. FIX WEAKNESSES: Address every issue listed in "weaknesses" (e.g. wrong type/is_a/kind, ODRL structure used as a class name). Add or change a rule ONLY if the fragment explicitly states it: an empty rights_model is valid when the fragment contains no rule. Never repeat a rule that is already present.
+    3. ADD MISSING CONCEPTS: Every concept listed in "missing_concepts" MUST be added BOTH as a string in "odrl_alignment.extensions" AND as a full entry in "classes" with its own "name", "type", "is_a", "kind" and "description" (one sentence, max 200 characters) grounded in the source text. Add only concepts that really appear in the source text.
     4. REMOVE HALLUCINATIONS: Remove or correct every concept listed in "hallucinations" and "unsupported_concepts". Do not keep unsupported claims.
     5. CONTROLLED VOCABULARY:
     - Class "type" is one of {core_types}. "is_a" is exactly one parent from this upper ontology (its group must match "type"):
@@ -54,7 +54,7 @@ ontology_revision:
     - Relationship "relation" is one of: {relations}.
     - Do not keep duties or prohibitions taken from recitals (paragraphs after "Whereas:").
     Invalid values are replaced in code after you answer, so choose the closest valid value rather than inventing one.
-    6. PRESERVE VALID CONTENT: Keep every class, relationship, and instance from the Candidate Ontology that was NOT flagged as wrong. Do not discard correct information.
+    6. PRESERVE VALID CONTENT: always keep the "provision" of every rule you keep. Keep every class, relationship, and instance from the Candidate Ontology that was NOT flagged as wrong. Do not discard correct information.
     7. SCHEMA CONSTRAINT: The corrected ontology output MUST contain EXACTLY these top-level keys, nothing more and nothing less: "ontology_name", "description", "odrl_alignment", "classes", "relationships", "rights_model", "legal_patterns", "example_instances". NEVER include review-related fields such as "approved", "revision_required", "strengths", "weaknesses", "missing_concepts", "overall_score" in the output ontology.
     8. GROUNDING CONSTRAINT: Do not invent facts, entities, dates, currencies, or values that are not explicitly present in the provided source text. If the source text uses "ECU", do NOT convert or add "EUR" or any other currency not mentioned in the text. Never infer a modern currency (e.g. EUR) just because the topic is money — use only the currency actually named in the text.
     9. EXTENSIONS MUST MATCH CLASS NAMES: Every string listed in "odrl_alignment.extensions" MUST be exactly equal to the "name" field of one entry in "classes" — never the "type" field, and never a name that does not appear in "classes" at all. Double-check this correspondence before returning the output.
@@ -79,18 +79,18 @@ ontology_revision:
 
     Return ONLY a single valid JSON object representing the CORRECTED ontology, containing EXACTLY these top-level keys (no more, no less): ontology_name, description, odrl_alignment, classes, relationships, rights_model, legal_patterns, example_instances.
 
-    Example structure:
+    Example structure (a TEMPLATE: the <...> placeholders show the shape only; NEVER copy names, actions, dates or amounts from it):
 
     {{
       "ontology_name": "...",
       "description": "...",
       "odrl_alignment": {{
         "core_entities": ["Asset", "Party", "Permission", "Prohibition", "Duty", "Constraint"],
-        "extensions": ["ExampleProcedure"]
+        "extensions": ["<LegalExtensionClassName>"]
       }},
       "classes": [
-        {{"name": "European_Commission", "type": "Party", "is_a": "EUInstitution", "kind": "individual", "description": "..."}},
-        {{"name": "ExampleProcedure", "type": "Legal_extension", "is_a": "Procedure", "kind": "class", "description": "..."}}
+        {{"name": "<PartyName>", "type": "Party", "is_a": "<parent>", "kind": "<individual|class>", "description": "..."}},
+        {{"name": "<LegalExtensionClassName>", "type": "Legal_extension", "is_a": "<parent>", "kind": "class", "description": "..."}}
       ],
       "relationships": [
         {{"source": "...", "relation": "governs", "target": "...", "description": "..."}}
@@ -99,8 +99,8 @@ ontology_revision:
         "permissions": [],
         "prohibitions": [],
         "duties": [
-          {{"action": "submit", "action_label": "submit_application", "party": "...", "assigner": "", "asset": "...", "provision": "article",
-            "constraints": [{{"left_operand": "dateTime", "operator": "lteq", "right_operand": "2019-12-31", "unit": ""}}]}}
+          {{"action": "<canonical action>", "action_label": "<verb_object_from_the_text>", "party": "<PartyName>", "assigner": "", "asset": "<AssetName>", "provision": "<article|recital>",
+            "constraints": []}}
         ]
       }},
       "legal_patterns": [

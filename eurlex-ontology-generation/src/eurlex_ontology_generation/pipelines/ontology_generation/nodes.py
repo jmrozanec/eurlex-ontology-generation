@@ -5,6 +5,11 @@ import pandas as pd
 from pathlib import Path
 
 from ...utils.llm_client import llm_chat, run_parallel
+from ...utils.ontology_cleanup import (
+    cleanup_ontology,
+    empty_ontology,
+    footnote_share,
+)
 from ...utils.ontology_schema import build_ontology_model
 from ...utils.persist import append_dedup_csv
 from ...utils.vocabulary import render_prompt
@@ -125,6 +130,9 @@ def generate_partial_ontologies(
     llm_backend: dict,
     structured_output: bool = False,
     vocabulary_path: str | None = None,
+    skip_footnote_chunks: bool = True,
+    footnote_threshold: float = 0.6,
+    cleanup_candidates: bool = True,
 ) -> pd.DataFrame:
 
     # The system prompt carries the controlled vocabulary; render it once.
@@ -133,7 +141,23 @@ def generate_partial_ontologies(
 
     # Helper closure to process a single chunk row through the LLM pipeline
     def _generate(row) -> dict:
-        user_prompt = render_prompt(user_prompt_template, vocabulary_path, text=row["chunk_text"])
+        chunk_text = "" if pd.isna(row["chunk_text"]) else str(row["chunk_text"])
+
+        # A fragment made only of footnotes ("(7) Council Regulation ... (OJ L ...)") has no
+        # rights or duties: asking the model anyway only produces invented rules.
+        share = footnote_share(chunk_text)
+        if skip_footnote_chunks and share >= footnote_threshold:
+            return {
+                "batch_id": batch_id,
+                "chunk_id": row["chunk_id"],
+                "CELEX": row["CELEX"],
+                "ontology": json.dumps(empty_ontology(), ensure_ascii=False),
+                "cleanup_notes": json.dumps(
+                    [{"code": "footnote_chunk_skipped", "detail": f"footnote share {share:.2f}"}]
+                ),
+            }
+
+        user_prompt = render_prompt(user_prompt_template, vocabulary_path, text=chunk_text)
 
         # Query local LLM via helper utility. With structured_output the JSON
         # schema (enums for types, is_a, actions, operands, relations) is
@@ -144,11 +168,17 @@ def generate_partial_ontologies(
             json_mode=json_mode,
         )
         ontology_json = extract_json(response.content)
+
+        # Checks against the source text, before the review sees the candidate (see utils/ontology_cleanup.py)
+        notes: list = []
+        if cleanup_candidates and "error" not in ontology_json:
+            ontology_json, notes = cleanup_ontology(ontology_json, chunk_text)
         return {
             "batch_id": batch_id,
             "chunk_id": row["chunk_id"],
             "CELEX": row["CELEX"],
             "ontology": json.dumps(ontology_json, ensure_ascii=False),
+            "cleanup_notes": json.dumps(notes, ensure_ascii=False),
         }
 
     rows = [row for _, row in chunks.iterrows()]
